@@ -2,17 +2,21 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-// Khởi chạy kết nối Database
+
 require('./config/db');
 
 const app = express();
 
-// Middlewares
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Endpoint kiểm tra hoạt động của Server
+
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
+
+
 app.get('/', (req, res) => {
     res.json({
         message: 'Scholarship Gateway API is running!',
