@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 
-// 1. Cập nhật thông tin cá nhân & kỹ năng
+// 1. CẬP NHẬT HỒ SƠ CÁ NHÂN & KỸ NĂNG
 exports.updateProfile = async (req, res) => {
     const userId = req.user.id;
     const { full_name, university, bio, skills, avatar_url } = req.body;
@@ -15,7 +15,7 @@ exports.updateProfile = async (req, res) => {
                  avatar_url = COALESCE($5, avatar_url),
                  updated_at = NOW()
              WHERE id = $6
-             RETURNING id, email, full_name, university, bio, skills, avatar_url, role`,
+             RETURNING id, email, full_name, university, bio, skills, avatar_url, role, is_mentor`,
             [full_name, university, bio, skills, avatar_url, userId]
         );
 
@@ -30,24 +30,25 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// 2. Chuyển đổi vai trò Mentor (Bật/Tắt)
+// 2. BẬT / TẮT CHẾ ĐỘ MENTOR
 exports.toggleMentorStatus = async (req, res) => {
     const userId = req.user.id;
     const { is_mentor } = req.body;
-    const newRole = is_mentor ? 'mentor' : 'user';
 
     try {
         const result = await pool.query(
             `UPDATE users 
-             SET role = $1, updated_at = NOW() 
-             WHERE id = $2 
-             RETURNING id, full_name, role`,
-            [newRole, userId]
+             SET is_mentor = $1, 
+                 role = CASE WHEN $1 = TRUE THEN 'mentor' ELSE 'user' END,
+                 updated_at = NOW()
+             WHERE id = $2
+             RETURNING id, full_name, role, is_mentor`,
+            [is_mentor, userId]
         );
 
         res.status(200).json({
             success: true,
-            message: `Chế độ Mentor đã được cập nhật thành: ${newRole}`,
+            message: `Chế độ Mentor đã được ${is_mentor ? 'bật' : 'tắt'}!`,
             data: result.rows[0]
         });
     } catch (err) {
@@ -56,7 +57,7 @@ exports.toggleMentorStatus = async (req, res) => {
     }
 };
 
-// 3. Lưu học bổng (Bookmark)
+// 3. LƯU HỌC BỔNG VÀO MỤC ĐÃ LƯU (Bookmark)
 exports.saveScholarship = async (req, res) => {
     const userId = req.user.id;
     const scholarshipId = req.params.scholarshipId;
@@ -79,7 +80,7 @@ exports.saveScholarship = async (req, res) => {
     }
 };
 
-// 4. Bỏ lưu học bổng
+// 4. BỎ LƯU HỌC BỔNG
 exports.unsaveScholarship = async (req, res) => {
     const userId = req.user.id;
     const scholarshipId = req.params.scholarshipId;
@@ -100,7 +101,7 @@ exports.unsaveScholarship = async (req, res) => {
     }
 };
 
-// 5. Lấy danh sách học bổng đã lưu
+// 5. LẤY DANH SÁCH HỌC BỔNG ĐÃ LƯU
 exports.getSavedScholarships = async (req, res) => {
     const userId = req.user.id;
 

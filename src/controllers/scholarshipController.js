@@ -1,6 +1,6 @@
 const pool = require('../config/db');
 
-// 1. Lấy danh sách & Bộ lọc học bổng
+// 1. LẤY DANH SÁCH HỌC BỔNG (HỖ TRỢ TÌM KIẾM, LỌC THEO CHÂU LỤC, LOẠI, SẮP XẾP HẠN NỘP)
 exports.getScholarships = async (req, res) => {
     const { search, continent, type, sort, limit = 10, page = 1 } = req.query;
     const offset = (page - 1) * limit;
@@ -8,27 +8,32 @@ exports.getScholarships = async (req, res) => {
     let query = `SELECT * FROM scholarships WHERE 1=1`;
     const params = [];
 
+    // Tìm kiếm theo tên hoặc tổ chức cấp học bổng
     if (search) {
         params.push(`%${search}%`);
         query += ` AND (title ILIKE $${params.length} OR organization ILIKE $${params.length})`;
     }
 
+    // Lọc theo châu lục (Châu Á, Châu Âu, Châu Mỹ...)
     if (continent) {
         params.push(continent);
         query += ` AND continent = $${params.length}`;
     }
 
+    // Lọc theo loại (Toàn phần, Bán phần, Trao đổi)
     if (type) {
         params.push(type);
         query += ` AND type = $${params.length}`;
     }
 
+    // Sắp xếp
     if (sort === 'deadline_asc') {
         query += ` ORDER BY deadline ASC`;
     } else {
         query += ` ORDER BY created_at DESC`;
     }
 
+    // Phân trang
     params.push(parseInt(limit));
     query += ` LIMIT $${params.length}`;
     params.push(parseInt(offset));
@@ -49,7 +54,7 @@ exports.getScholarships = async (req, res) => {
     }
 };
 
-// 2. Lấy chi tiết một học bổng
+// 2. XEM CHI TIẾT HỌC BỔNG
 exports.getScholarshipById = async (req, res) => {
     const { id } = req.params;
 
@@ -72,7 +77,7 @@ exports.getScholarshipById = async (req, res) => {
     }
 };
 
-// 3. Thêm mới học bổng (Admin / Dữ liệu mẫu)
+// 3. TẠO MẪU HỌC BỔNG (Dùng để nạp dữ liệu kiểm thử hoặc Web Admin)
 exports.createScholarship = async (req, res) => {
     const {
         title, organization, country, continent, type,

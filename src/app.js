@@ -3,43 +3,26 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-// Khởi chạy kết nối Database PostgreSQL
+// Khởi chạy kết nối Database
 require('./config/db');
 
 const app = express();
 
-// Middlewares xử lý request
+// Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Cung cấp quyền truy cập file tĩnh cho các file upload (PDF minh chứng, ảnh avatar)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// --- IMPORT CÁC ROUTERS ---
+// Khai báo Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const scholarshipRoutes = require('./routes/scholarshipRoutes');
-const postRoutes = require('./routes/postRoutes');
-const mentorRoutes = require('./routes/mentorRoutes');
 
-// Kiểm tra nhanh type của các route để tránh crash server
-console.log('--- KIỂM TRA ROUTE MODULES ---');
-console.log('authRoutes:', typeof authRoutes);
-console.log('userRoutes:', typeof userRoutes);
-console.log('scholarshipRoutes:', typeof scholarshipRoutes);
-console.log('postRoutes:', typeof postRoutes);
-console.log('mentorRoutes:', typeof mentorRoutes);
-console.log('------------------------------');
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/scholarships', scholarshipRoutes);
 
-// --- ĐĂNG KÝ CÁC ROUTES DỰ ÁN ---
-if (typeof authRoutes === 'function') app.use('/api/auth', authRoutes);
-if (typeof userRoutes === 'function') app.use('/api/users', userRoutes);
-if (typeof scholarshipRoutes === 'function') app.use('/api/scholarships', scholarshipRoutes);
-if (typeof postRoutes === 'function') app.use('/api/posts', postRoutes);
-if (typeof mentorRoutes === 'function') app.use('/api/mentors', mentorRoutes);
-
-// Health check endpoint
+// Health check
 app.get('/', (req, res) => {
     res.json({
         message: 'Scholarship Gateway API is running smoothly!',
