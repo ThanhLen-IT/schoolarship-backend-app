@@ -24,7 +24,7 @@ Content-Type: application/json
 ```
 Returns HTTP 200 and the same generic message for existing and unknown emails.
 A token is generated only for active accounts and emailed to the owner.
-A repeat request within approximately 1 minute does not send another email.
+A repeat request while an existing token has more than 14 minutes remaining (approximately the first minute after issue) does not send another email.
 
 **Confirm a password reset**
 ```http
