@@ -30,31 +30,13 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// 2. BẬT / TẮT CHẾ ĐỘ MENTOR
-exports.toggleMentorStatus = async (req, res) => {
-    const userId = req.user.id;
-    const { is_mentor } = req.body;
-
-    try {
-        const result = await pool.query(
-            `UPDATE users 
-             SET is_mentor = $1, 
-                 role = CASE WHEN $1 = TRUE THEN 'mentor' ELSE 'user' END,
-                 updated_at = NOW()
-             WHERE id = $2
-             RETURNING id, full_name, role, is_mentor`,
-            [is_mentor, userId]
-        );
-
-        res.status(200).json({
-            success: true,
-            message: `Chế độ Mentor đã được ${is_mentor ? 'bật' : 'tắt'}!`,
-            data: result.rows[0]
-        });
-    } catch (err) {
-        console.error('Lỗi toggleMentorStatus:', err.message);
-        res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-    }
+// 2. Legacy endpoint: users must NOT be able to promote their own accounts.
+// Mentor verification is managed via POST /api/mentors/verify and admin approval.
+exports.toggleMentorStatus = (req, res) => {
+    return res.status(403).json({
+        success: false,
+        message: 'Không thể tự thay đổi quyền Mentor. Vui lòng nộp hồ sơ xét duyệt tại /api/mentors/verify.'
+    });
 };
 
 // 3. LƯU HỌC BỔNG VÀO MỤC ĐÃ LƯU (Bookmark)
