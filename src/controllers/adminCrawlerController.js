@@ -527,7 +527,7 @@ exports.updateScholarship = async (req, res) => {
     const result = await pool.query(
       `UPDATE scholarships
              SET ${setClause}, updated_at = NOW()
-             WHERE id = ${values.length}
+             WHERE id = $${values.length}
                AND status = 'pending'
              RETURNING *`,
       values,
