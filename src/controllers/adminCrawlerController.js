@@ -175,8 +175,14 @@ exports.getLogs = async (req, res) => {
         });
       }
 
-      params.push(status);
-      conditions.push(`status = $${params.length}`);
+      if (status === "completed_with_errors") {
+        conditions.push("status = 'completed' AND failed_count > 0");
+      } else if (status === "completed") {
+        conditions.push("status = 'completed' AND failed_count = 0");
+      } else {
+        params.push(status);
+        conditions.push(`status = $${params.length}`);
+      }
     }
 
     const whereClause =
@@ -209,7 +215,8 @@ exports.getLogs = async (req, res) => {
                 found_count,
                 saved_count,
                 failed_count,
-                status,
+                CASE WHEN status = 'completed' AND failed_count > 0
+                     THEN 'completed_with_errors' ELSE status END AS status,
                 error_message
              FROM scholarship_crawl_logs
              ${whereClause}
