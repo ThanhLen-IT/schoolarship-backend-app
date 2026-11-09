@@ -485,6 +485,18 @@ exports.updateScholarship = async (req, res) => {
       }
     }
 
+    // Resolve relative images/links against the original article URL.
+    // Without a base URL, a safe relative link would be dropped.
+    let contentBaseUrl = null;
+    if (fields.includes("content_html")) {
+      const current = await pool.query(
+        "SELECT source_url FROM scholarships WHERE id = $1 AND status = 'pending'",
+        [id]
+      );
+      if (!current.rows.length) return await scholarshipNotFoundOrProcessed(id, res);
+      contentBaseUrl = current.rows[0].source_url;
+    }
+
     const values = fields.map((field) => {
       let value = req.body[field];
 
@@ -493,7 +505,7 @@ exports.updateScholarship = async (req, res) => {
         return normalizeStudyLevels(value);
       }
       if (field === "content_html") {
-        return sanitizeScholarshipHtml(value);
+        return sanitizeScholarshipHtml(value, contentBaseUrl);
       }
       if (field === "majors") {
         if (typeof value === "string") {
