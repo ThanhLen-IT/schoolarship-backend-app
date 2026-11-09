@@ -64,23 +64,27 @@ exports.register = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, identifier, password } = req.body || {};
+  const loginName = email ?? username ?? identifier;
 
-  if (!email || !password) {
+  if (typeof loginName !== 'string' || !loginName.trim() || typeof password !== 'string' || !password) {
     return res.status(400).json({
       success: false,
-      message: "Vui lòng nhập đầy đủ email và mật khẩu!",
+      message: "Vui lòng nhập email/username và mật khẩu!",
     });
   }
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const input = loginName.trim();
+    const handle = input.replace(/^@/, '').toLowerCase();
+    const result = await pool.query(
+      "SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR username = $2 LIMIT 1",
+      [input, handle]
+    );
     if (result.rows.length === 0) {
       return res.status(401).json({
         success: false,
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: "Email/username hoặc mật khẩu không chính xác!",
       });
     }
 
@@ -90,7 +94,7 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: "Email/username hoặc mật khẩu không chính xác!",
       });
     }
 
@@ -163,7 +167,7 @@ exports.forgotPassword = async (req, res) => {
        FROM users
        WHERE email = $1 AND is_active = TRUE
        LIMIT 1`,
-      [email.trim()],
+      [email.trim().toLowerCase()],
     );
 
     if (result.rows.length === 0 || result.rows[0].recently_requested) {
