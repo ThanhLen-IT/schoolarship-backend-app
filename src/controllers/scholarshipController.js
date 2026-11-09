@@ -575,6 +575,8 @@ exports.createScholarship = async (req, res) => {
     if (
       err.message.includes("study_levels") ||
       err.message.includes("majors") ||
+      err.message.includes("Bậc học") ||
+      err.message.includes("Phải chọn") ||
       err.message.includes("content_html")
     ) {
       return res.status(400).json({
@@ -733,7 +735,10 @@ exports.updateScholarship = async (req, res) => {
 
     if (
       err.message.includes("study_levels") ||
-      err.message.includes("majors")
+      err.message.includes("majors") ||
+      err.message.includes("Bậc học") ||
+      err.message.includes("Phải chọn") ||
+      err.message.includes("content_html")
     ) {
       return res.status(400).json({
         success: false,
