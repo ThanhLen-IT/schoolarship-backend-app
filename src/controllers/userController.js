@@ -1,32 +1,36 @@
 const pool = require('../config/db');
+const { validateProfileInput } = require('../utils/userProfileValidation');
+const { toPublicScholarship } = require('../utils/publicScholarship');
 
-// 1. CẬP NHẬT HỒ SƠ CÁ NHÂN & KỸ NĂNG
+// User updates are restricted to profile fields; no role, XP or mentor privileges.
 exports.updateProfile = async (req, res) => {
-    const userId = req.user.id;
-    const { full_name, university, bio, skills, avatar_url } = req.body;
-
+    let changes;
     try {
-        const result = await pool.query(
-            `UPDATE users 
-             SET full_name = COALESCE($1, full_name),
-                 university = COALESCE($2, university),
-                 bio = COALESCE($3, bio),
-                 skills = COALESCE($4, skills),
-                 avatar_url = COALESCE($5, avatar_url),
-                 updated_at = NOW()
-             WHERE id = $6
-             RETURNING id, email, full_name, university, bio, skills, avatar_url, role, is_mentor`,
-            [full_name, university, bio, skills, avatar_url, userId]
-        );
-
-        res.status(200).json({
-            success: true,
-            message: 'Cập nhật hồ sơ thành công!',
-            data: result.rows[0]
-        });
+        changes = validateProfileInput(req.body);
     } catch (err) {
+        return res.status(400).json({ success: false, message: err.message });
+    }
+    const keys = Object.keys(changes);
+    const values = keys.map(key => changes[key]);
+    const columns = keys.map((key, i) => '"' + key + '" = $' + (i + 1));
+
+    values.push(req.user.id);
+    try {
+        const sql = 'UPDATE users SET ' + columns.join(', ') +
+            ', updated_at = NOW() WHERE id = $' + values.length +
+            ' RETURNING id, email, username, full_name, university, major, bio, skills, ' +
+            'avatar_url, role, is_mentor, is_active, updated_at';
+        const result = await pool.query(sql, values);
+        if (!result.rows.length) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng!' });
+        }
+        return res.json({ success: true, message: 'Cập nhật hồ sơ thành công!', data: result.rows[0] });
+    } catch (err) {
+        if (err.code === '23505') {
+            return res.status(409).json({ success: false, message: 'Username này đã được sử dụng!' });
+        }
         console.error('Lỗi updateProfile:', err.message);
-        res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
+        return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
 
@@ -83,21 +87,20 @@ exports.saveScholarship = async (req, res) => {
 // 4. BỎ LƯU HỌC BỔNG
 exports.unsaveScholarship = async (req, res) => {
     const userId = req.user.id;
-    const scholarshipId = req.params.scholarshipId;
+    const scholarshipId = Number(req.params.scholarshipId);
+    if (!Number.isSafeInteger(scholarshipId) || scholarshipId <= 0) {
+        return res.status(400).json({ success: false, message: 'ID học bổng không hợp lệ!' });
+    }
 
     try {
         await pool.query(
-            `DELETE FROM saved_scholarships WHERE user_id = $1 AND scholarship_id = $2`,
+            'DELETE FROM saved_scholarships WHERE user_id = $1 AND scholarship_id = $2',
             [userId, scholarshipId]
         );
-
-        res.status(200).json({
-            success: true,
-            message: 'Đã bỏ lưu học bổng!'
-        });
+        return res.status(200).json({ success: true, message: 'Đã bỏ lưu học bổng!' });
     } catch (err) {
         console.error('Lỗi unsaveScholarship:', err.message);
-        res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
+        return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
 
@@ -118,7 +121,7 @@ exports.getSavedScholarships = async (req, res) => {
         res.status(200).json({
             success: true,
             total: result.rows.length,
-            data: result.rows
+            data: result.rows.map(toPublicScholarship)
         });
     } catch (err) {
         console.error('Lỗi getSavedScholarships:', err.message);
