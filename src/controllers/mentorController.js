@@ -63,9 +63,10 @@ exports.applyMentorVerification = async (req, res) => {
         }
         const existing = await client.query(
             `SELECT id, status FROM mentor_verifications
-             WHERE user_id = $1 AND status IN ('pending', 'approved')
+             WHERE user_id = $1 AND scholarship_id IS NOT DISTINCT FROM $2
+               AND status IN ('pending', 'approved')
              ORDER BY created_at DESC, id DESC LIMIT 1`,
-            [userId]
+            [userId, scholarshipId]
         );
         if (existing.rows.length > 0) {
             await client.query('ROLLBACK');
@@ -149,7 +150,7 @@ exports.getMentors = async (req, res) => {
         const scholarshipId = positiveId(req.query.scholarship_id);
         if (!scholarshipId) return res.status(400).json({ success: false, message: 'scholarship_id không hợp lệ!' });
         params.push(scholarshipId);
-        where.push(`mv.scholarship_id = $${params.length}`);
+        // The filter belongs INSIDE the LATERAL query, before selecting latest approved verification.
     }
     if (req.query.search) {
         if (typeof req.query.search !== 'string' || req.query.search.length > 100) {
@@ -160,9 +161,27 @@ exports.getMentors = async (req, res) => {
     }
 
     try {
+        let scopedFrom = verifiedMentorsFrom;
+        let scopedRatings = ratingJoin;
+        if (req.query.scholarship_id) {
+            scopedFrom = verifiedMentorsFrom.replace(
+                "WHERE mv.user_id = u.id AND mv.status = 'approved'",
+                "WHERE mv.user_id = u.id AND mv.status = 'approved' AND mv.scholarship_id = $1"
+            );
+            scopedRatings = `
+                LEFT JOIN (
+                    SELECT ma.mentor_id, ROUND(AVG(mr.rating)::numeric, 1) AS avg_rating,
+                           COUNT(*)::int AS total_reviews
+                    FROM mentor_reviews mr
+                    JOIN mentee_applications ma ON ma.id = mr.application_id
+                    WHERE ma.scholarship_id = $1
+                    GROUP BY ma.mentor_id
+                ) ratings ON ratings.mentor_id = u.id
+            `;
+        }
         const filter = ' WHERE ' + where.join(' AND ');
         const count = await pool.query(
-            'SELECT COUNT(*)::int AS total ' + verifiedMentorsFrom + filter,
+            'SELECT COUNT(*)::int AS total ' + scopedFrom + filter,
             params
         );
         const result = await pool.query(
@@ -170,7 +189,7 @@ exports.getMentors = async (req, res) => {
                     mv.hourly_rate, mv.calendly_link, mv.qr_payment_url,
                     s.title AS scholarship_name, ratings.avg_rating,
                     COALESCE(ratings.total_reviews, 0) AS total_reviews
-             ${verifiedMentorsFrom} ${ratingJoin} ${filter}
+             ${scopedFrom} ${scopedRatings} ${filter}
              ORDER BY ratings.avg_rating DESC NULLS LAST, u.xp_points DESC, u.id ASC
              LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
             [...params, limit, (page - 1) * limit]
