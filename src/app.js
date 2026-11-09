@@ -1,6 +1,7 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
 
 // Khởi chạy kết nối Database
 require("./config/db");
@@ -26,12 +27,22 @@ app.use("/api/admin/crawler", adminCrawlerRoutes);
 app.use("/api/admin/scholarships", adminScholarshipRoutes);
 
 // Health check
-app.get("/", (req, res) => {
-  res.json({
-    message: "Scholarship Gateway API is running!",
-    status: "Healthy",
-    database: process.env.DB_NAME,
-  });
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Scholarship Gateway API is running smoothly!',
+        status: 'Healthy',
+        version: '1.2.0',
+        database: process.env.DB_NAME
+    });
+});
+
+// Middleware xử lý lỗi tập trung
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err.stack);
+    res.status(500).json({
+        success: false,
+        message: err.message || 'Lỗi máy chủ nội bộ!'
+    });
 });
 
 const PORT = process.env.PORT || 5000;
