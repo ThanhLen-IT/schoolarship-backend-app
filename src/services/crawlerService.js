@@ -270,9 +270,9 @@ async function crawlScholarships(config) {
     await pool.query(
       `UPDATE scholarship_crawl_logs
              SET finished_at = CURRENT_TIMESTAMP, found_count = $1, saved_count = $2,
-                 failed_count = $3, status = $5
+                 failed_count = $3, status = 'completed'
              WHERE id = $4`,
-      [found, saved, failed, logId, failed > 0 ? 'completed_with_errors' : 'completed'],
+      [found, saved, failed, logId],
     );
 
     console.log(
