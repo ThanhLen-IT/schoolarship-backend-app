@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const mentorController = require('../controllers/mentorController');
+const mentorRankingController = require('../controllers/mentorRankingController');
 const { verifyToken } = require('../middlewares/authMiddleware');
 const { uploadEvidence } = require('../middlewares/uploadMiddleware');
 
 // 1. Tuyến đường tĩnh: Danh sách Mentor (Công khai)
 router.get('/', mentorController.getMentors);
+
+// Static route must come before /:id.
+router.get('/ranking', mentorRankingController.getRanking);
 
 // 2. Tuyến đường tĩnh: Kiểm tra trạng thái duyệt Mentor của user hiện tại (Phải đặt TRƯỚC /:id)
 router.get('/verify/status', verifyToken, mentorController.getMyVerificationStatus);

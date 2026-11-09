@@ -176,6 +176,24 @@ function buildFilters(queryParams, publicOnly = false) {
     );
   }
 
+  // Deadline interval for the mobile app. Date-only values avoid timezone ambiguity.
+  const deadlineFrom = queryParams.deadline_from;
+  const deadlineTo = queryParams.deadline_to;
+
+  if (deadlineFrom !== undefined && deadlineFrom !== null && deadlineFrom !== "" &&
+      !isValidDate(deadlineFrom)) {
+    throw new Error("deadline_from không hợp lệ. Dùng YYYY-MM-DD.");
+  }
+  if (deadlineTo !== undefined && deadlineTo !== null && deadlineTo !== "" &&
+      !isValidDate(deadlineTo)) {
+    throw new Error("deadline_to không hợp lệ. Dùng YYYY-MM-DD.");
+  }
+  if (deadlineFrom && deadlineTo && deadlineFrom > deadlineTo) {
+    throw new Error("Khoảng deadline không hợp lệ: deadline_from phải trước hoặc bằng deadline_to.");
+  }
+  if (deadlineFrom) addCondition("deadline >= ?", deadlineFrom);
+  if (deadlineTo) addCondition("deadline <= ?", deadlineTo);
+
   // Lọc theo ngành học
   const major = normalizeText(queryParams.major);
 

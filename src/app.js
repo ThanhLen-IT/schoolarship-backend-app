@@ -21,6 +21,8 @@ const adminScholarshipRoutes = require("./routes/adminScholarshipRoutes");
 const mentorRoutes = require("./routes/mentorRoutes");
 const adminMentorRoutes = require("./routes/adminMentorRoutes");
 const postRoutes = require("./routes/postRoutes");
+const mentoringRoutes = require("./routes/mentoringRoutes");
+const adminMentoringRoutes = require("./routes/adminMentoringRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -30,6 +32,37 @@ app.use("/api/admin/scholarships", adminScholarshipRoutes);
 app.use("/api/mentors", mentorRoutes);
 app.use("/api/admin/mentors", adminMentorRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/mentoring", mentoringRoutes);
+app.use("/api/admin/mentoring", adminMentoringRoutes);
+
+// Liveness: confirms the Express process is running.
+app.get('/health', (req, res) => {
+    return res.status(200).json({ success: true, status: 'up' });
+});
+
+// Readiness: reports whether PostgreSQL is reachable before the demo.
+app.get('/health/ready', async (req, res) => {
+    try {
+        await require('./config/db').query('SELECT 1');
+        return res.status(200).json({ success: true, status: 'ready' });
+    } catch (error) {
+        console.error('Database readiness check failed:', error.message);
+        return res.status(503).json({ success: false, status: 'database_unavailable' });
+    }
+});
+
+// Midterm readiness also checks that the additive Ranking migration is installed.
+app.get('/health/midterm', async (req, res) => {
+    try {
+        const pool = require('./config/db');
+        await pool.query('SELECT mentoring_started_at, scholarship_outcome FROM mentee_applications LIMIT 0');
+        await pool.query('SELECT id FROM mentoring_response_requests LIMIT 0');
+        return res.status(200).json({ success: true, status: 'midterm_ready' });
+    } catch (error) {
+        console.error('Midterm readiness check failed:', error.message);
+        return res.status(503).json({ success: false, status: 'midterm_schema_unavailable' });
+    }
+});
 
 // Health check
 app.get('/', (req, res) => {
