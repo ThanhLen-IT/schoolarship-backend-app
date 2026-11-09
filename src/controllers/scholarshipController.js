@@ -635,6 +635,19 @@ exports.updateScholarship = async (req, res) => {
   const params = [];
 
   try {
+    let contentBaseUrl = body.source_url || null;
+    if (Object.prototype.hasOwnProperty.call(body, "content_html") && !contentBaseUrl) {
+      const existing = await pool.query(
+        "SELECT source_url FROM scholarships WHERE id = $1",
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({
+          success: false, message: "Không tìm thấy học bổng."
+        });
+      }
+      contentBaseUrl = existing.rows[0].source_url;
+    }
     for (const [key, column] of Object.entries(fieldMap)) {
       if (!Object.prototype.hasOwnProperty.call(body, key)) {
         continue;
@@ -681,7 +694,7 @@ exports.updateScholarship = async (req, res) => {
       } else if (key === "majors") {
         value = normalizeMajors(value);
       } else if (key === "content_html") {
-        value = sanitizeScholarshipHtml(value, body.source_url);
+        value = sanitizeScholarshipHtml(value, contentBaseUrl);
       } else {
         value = normalizeText(value);
       }
