@@ -1,4 +1,6 @@
 const pool = require("../config/db");
+const { normalizeStudyLevels, isValidISODate, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
+const { approvePendingScholarship } = require("../services/scholarshipApprovalService");
 
 const {
   getCrawlerSources,
@@ -161,7 +163,7 @@ exports.getLogs = async (req, res) => {
     }
 
     // Lọc theo trạng thái
-    const allowedStatuses = ["running", "completed", "failed"];
+    const allowedStatuses = ["running", "completed", "completed_with_errors", "failed"];
 
     if (req.query.status) {
       const status = String(req.query.status).trim();
@@ -300,7 +302,9 @@ exports.getPendingScholarships = async (req, res) => {
                 created_at,
                 status,
                 majors,
-                study_levels
+                study_levels,
+                content_html,
+                original_content_html
              FROM scholarships
              WHERE ${whereClause}
              ORDER BY crawled_at DESC NULLS LAST,
@@ -364,6 +368,7 @@ exports.updateScholarship = async (req, res) => {
       "image_url",
       "majors",
       "study_levels",
+      "content_html",
     ];
 
     const fields = allowedFields.filter((field) =>
@@ -394,7 +399,7 @@ exports.updateScholarship = async (req, res) => {
       if (
         deadline !== null &&
         deadline !== "" &&
-        (typeof deadline !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(deadline))
+        !isValidISODate(deadline)
       ) {
         return res.status(400).json({
           success: false,
@@ -454,11 +459,36 @@ exports.updateScholarship = async (req, res) => {
       }
     }
 
+    // Database study_levels is NOT NULL and Mobile API uses canonical values.
+    if (fields.includes("study_levels")) {
+      try {
+        normalizeStudyLevels(req.body.study_levels);
+      } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+    }
+
+    // Never persist executable HTML in the editable mobile content field.
+    if (fields.includes("content_html")) {
+      if (req.body.content_html !== null &&
+          (typeof req.body.content_html !== "string" || req.body.content_html.length > 2000000)) {
+        return res.status(400).json({
+          success: false, message: "content_html phải là HTML tối đa 2 triệu ký tự."
+        });
+      }
+    }
+
     const values = fields.map((field) => {
       let value = req.body[field];
 
       // Xử lý danh sách ngành học
-      if (field === "majors" || field === "study_levels") {
+      if (field === "study_levels") {
+        return normalizeStudyLevels(value);
+      }
+      if (field === "content_html") {
+        return sanitizeScholarshipHtml(value);
+      }
+      if (field === "majors") {
         if (typeof value === "string") {
           value = value.split(/[,;\n]/);
         }
@@ -496,8 +526,8 @@ exports.updateScholarship = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE scholarships
-             SET ${setClause}
-             WHERE id = $${values.length}
+             SET ${setClause}, updated_at = NOW()
+             WHERE id = ${values.length}
                AND status = 'pending'
              RETURNING *`,
       values,
@@ -538,49 +568,20 @@ exports.approveScholarship = async (req, res) => {
   try {
     const id = parseId(req.params.id);
     const adminId = parseId(req.user?.id);
+    if (!id) return res.status(400).json({ success: false, message: "ID học bổng không hợp lệ." });
+    if (!adminId) return res.status(401).json({ success: false, message: "Không xác định được Admin." });
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "ID học bổng không hợp lệ.",
-      });
-    }
-
-    if (!adminId) {
-      return res.status(401).json({
-        success: false,
-        message: "Không xác định được tài khoản Admin.",
-      });
-    }
-
-    const result = await pool.query(
-      `UPDATE scholarships
-             SET status = 'published',
-                 reviewed_by = $2,
-                 reviewed_at = NOW(),
-                 rejection_reason = NULL
-             WHERE id = $1
-               AND status = 'pending'
-             RETURNING *`,
-      [id, adminId],
-    );
-
-    if (result.rowCount === 0) {
-      return await scholarshipNotFoundOrProcessed(id, res);
-    }
+    const published = await approvePendingScholarship(id, adminId);
+    if (!published) return await scholarshipNotFoundOrProcessed(id, res);
 
     return res.status(200).json({
       success: true,
       message: "Đã duyệt và xuất bản học bổng.",
-      data: result.rows[0],
+      data: published,
     });
   } catch (error) {
     console.error("Lỗi approveScholarship:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: "Không thể duyệt học bổng.",
-    });
+    return res.status(500).json({ success: false, message: "Không thể duyệt học bổng." });
   }
 };
 
