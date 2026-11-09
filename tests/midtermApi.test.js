@@ -168,3 +168,25 @@ test('response request requires an explicit note, not arbitrary chat messages', 
   assert.equal(res.statusCode, 400);
   assert.equal(called, false);
 });
+
+
+test('Mentor discovery filters approved verification and ratings by the selected scholarship', async () => {
+  const calls = [];
+  const controller = loadController('src/controllers/mentorController.js', {
+    '../config/db': {
+      async query(sql, params) {
+        calls.push({ sql, params });
+        if (sql.includes('COUNT(*)::int AS total')) return { rows: [{ total: 1 }] };
+        return { rows: [{ id: 7, full_name: 'Mentor' }] };
+      }
+    },
+    'fs/promises': {}
+  });
+  const res = response();
+  await controller.getMentors({ query: { scholarship_id: '123' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.total, 1);
+  assert.match(calls[0].sql, /mv\.scholarship_id = \$1/);
+  assert.match(calls[1].sql, /ma\.scholarship_id = \$1/);
+  assert.deepEqual(JSON.stringify(calls[0].params), JSON.stringify([123]));
+});
