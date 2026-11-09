@@ -68,10 +68,20 @@ async function runSteps(page, steps = []) {
    3. Bóc tách HTML danh sách
    ────────────────────────────────────────────── */
 function toAbsoluteUrl(href, base) {
-  if (!href || href.startsWith("#") || href.startsWith("javascript:"))
+  if (typeof href !== "string" || !href.trim() || href.startsWith("#")) {
     return null;
+  }
   try {
-    return new URL(href, base).href;
+    const target = new URL(href, base);
+    const source = new URL(base);
+    // Only crawl public HTTP(S) links on the same source host.
+    // Untrusted listing links must never send Puppeteer into an arbitrary origin.
+    const normalizedHost = (host) => host.replace(/^www\./i, "").toLowerCase();
+    if (!["https:", "http:"].includes(target.protocol) ||
+        normalizedHost(target.hostname) !== normalizedHost(source.hostname)) {
+      return null;
+    }
+    return target.href;
   } catch {
     return null;
   }
