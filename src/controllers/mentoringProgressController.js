@@ -138,6 +138,10 @@ exports.updateApplicationProgress = async (req, res) => {
     return res.status(400).json({ success: false, message: 'ID hoặc action không hợp lệ.' });
   }
   const rule = rules[action];
+  if (rule.actor === 'mentor_id' &&
+      (req.user.role !== 'mentor' || req.user.is_mentor !== true)) {
+    return res.status(403).json({ success: false, message: 'Chỉ Mentor đã duyệt mới được điều khiển tiến độ.' });
+  }
   try {
     const changes = [
       "status = '" + rule.next + "'",
@@ -147,6 +151,10 @@ exports.updateApplicationProgress = async (req, res) => {
     const result = await pool.query(
       'UPDATE mentee_applications SET ' + changes.join(', ') +
       ' WHERE id = $1 AND ' + rule.actor + ' = $2 AND status = $3 ' +
+      (rule.actor === 'mentor_id'
+        ? " AND EXISTS (SELECT 1 FROM mentor_verifications mv WHERE mv.user_id = $2 " +
+          "AND mv.scholarship_id = mentee_applications.scholarship_id AND mv.status = 'approved') "
+        : '') +
       'RETURNING id, status, mentoring_started_at, mentoring_completed_at',
       [id, req.user.id, rule.previous]
     );
@@ -274,6 +282,9 @@ exports.respondToRequest = async (req, res) => {
   if (!id || !note) {
     return res.status(400).json({ success: false, message: 'Cần request_id và response_note (1–2000 ký tự).' });
   }
+  if (req.user.role !== 'mentor' || req.user.is_mentor !== true) {
+    return res.status(403).json({ success: false, message: 'Chỉ Mentor đã duyệt mới được phản hồi.' });
+  }
   try {
     const result = await pool.query(
       'UPDATE mentoring_response_requests rr ' +
@@ -281,6 +292,8 @@ exports.respondToRequest = async (req, res) => {
       'FROM mentee_applications ma ' +
       'WHERE rr.id = $1 AND rr.application_id = ma.id AND ma.mentor_id = $2 ' +
       "AND ma.status IN ('in_progress', 'completed') " +
+      "AND EXISTS (SELECT 1 FROM mentor_verifications mv WHERE mv.user_id = $2 " +
+      "AND mv.scholarship_id = ma.scholarship_id AND mv.status = 'approved') " +
       'AND rr.responded_at IS NULL ' +
       'RETURNING rr.id, rr.application_id, rr.requested_at, rr.responded_at, rr.response_note',
       [id, req.user.id, note]
