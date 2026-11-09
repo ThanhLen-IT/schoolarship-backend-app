@@ -34,6 +34,7 @@ exports.applyMentorVerification = async (req, res) => {
         }
     }
 
+    let client;
     try {
         // MIME type is supplied by the client. Also check the actual PDF header.
         const file = await fs.open(req.file.path, 'r');
@@ -48,31 +49,50 @@ exports.applyMentorVerification = async (req, res) => {
             return reject(400, 'File minh chứng không phải PDF hợp lệ!');
         }
 
-        const existing = await pool.query(
+        // Lock this account until verification is stored. Two simultaneous
+        // requests cannot both create pending verification records.
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const account = await client.query(
+            'SELECT id FROM users WHERE id = $1 AND is_active = TRUE FOR UPDATE',
+            [userId]
+        );
+        if (!account.rows.length) {
+            await client.query('ROLLBACK');
+            return reject(403, 'Tài khoản không thể nộp hồ sơ Mentor!');
+        }
+        const existing = await client.query(
             `SELECT id, status FROM mentor_verifications
              WHERE user_id = $1 AND status IN ('pending', 'approved')
              ORDER BY created_at DESC, id DESC LIMIT 1`,
             [userId]
         );
         if (existing.rows.length > 0) {
+            await client.query('ROLLBACK');
             return reject(409, 'Bạn đã có hồ sơ đang chờ duyệt hoặc đã được duyệt!');
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `INSERT INTO mentor_verifications
              (user_id, evidence_file_url, scholarship_id, hourly_rate, calendly_link, qr_payment_url, status)
              VALUES ($1, $2, $3, $4, $5, $6, 'pending')
              RETURNING id, user_id, status, scholarship_id, hourly_rate, created_at`,
             [userId, `/uploads/${req.file.filename}`, scholarshipId, rate, calendly_link || null, qr_payment_url || null]
         );
+        await client.query('COMMIT');
         return res.status(201).json({
             success: true,
             message: 'Đã nộp hồ sơ Mentor. Vui lòng chờ Admin xét duyệt.',
             data: result.rows[0]
         });
     } catch (err) {
+        if (client) {
+            try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
+        }
         console.error('Lỗi applyMentorVerification:', err.message);
         return reject(500, 'Lỗi máy chủ!');
+    } finally {
+        if (client) client.release();
     }
 };
 
