@@ -98,14 +98,20 @@ exports.applyMentorVerification = async (req, res) => {
 };
 
 exports.getMyVerificationStatus = async (req, res) => {
+    const scholarshipId = req.query.scholarship_id == null
+        ? null : positiveId(req.query.scholarship_id);
+    if (req.query.scholarship_id != null && !scholarshipId) {
+        return res.status(400).json({ success: false, message: 'scholarship_id không hợp lệ!' });
+    }
     try {
         const result = await pool.query(
             `SELECT mv.*, s.title AS scholarship_title
              FROM mentor_verifications mv
              LEFT JOIN scholarships s ON mv.scholarship_id = s.id
              WHERE mv.user_id = $1
+               AND ($2::integer IS NULL OR mv.scholarship_id = $2)
              ORDER BY mv.created_at DESC, mv.id DESC LIMIT 1`,
-            [req.user.id]
+            [req.user.id, scholarshipId]
         );
         if (!result.rows.length) {
             return res.json({ success: true, has_applied: false, status: 'none' });
