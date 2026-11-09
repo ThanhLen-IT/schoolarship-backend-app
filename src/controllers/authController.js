@@ -12,7 +12,7 @@ require("dotenv").config();
 exports.register = async (req, res) => {
   const { email, password, full_name, university, username, major } = req.body || {};
 
-  if (typeof email !== "string" || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()) ||
+  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
       typeof password !== "string" || Buffer.byteLength(password, "utf8") < 8 ||
       Buffer.byteLength(password, "utf8") > 72) {
     return res.status(400).json({
