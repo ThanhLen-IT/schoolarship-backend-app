@@ -428,3 +428,8 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Scholarship Mentor: protect private verification evidence
+uploads/
+.env.*
+!.env.example
