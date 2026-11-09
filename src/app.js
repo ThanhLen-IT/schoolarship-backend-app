@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 require('dotenv').config();
 
 // Khởi chạy kết nối Database
@@ -19,12 +18,16 @@ const userRoutes = require("./routes/userRoutes");
 const scholarshipRoutes = require("./routes/scholarshipRoutes");
 const adminCrawlerRoutes = require("./routes/adminCrawlerRoutes");
 const adminScholarshipRoutes = require("./routes/adminScholarshipRoutes");
+const mentorRoutes = require("./routes/mentorRoutes");
+const adminMentorRoutes = require("./routes/adminMentorRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/scholarships", scholarshipRoutes);
 app.use("/api/admin/crawler", adminCrawlerRoutes);
 app.use("/api/admin/scholarships", adminScholarshipRoutes);
+app.use("/api/mentors", mentorRoutes);
+app.use("/api/admin/mentors", adminMentorRoutes);
 
 // Health check
 app.get('/', (req, res) => {
