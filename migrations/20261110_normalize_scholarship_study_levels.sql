@@ -11,7 +11,7 @@ SET study_levels = ARRAY(
             WHEN 'cử nhân' THEN 'bachelor'
             WHEN 'thạc sĩ' THEN 'master'
             WHEN 'tiến sĩ' THEN 'doctoral'
-            WHEN 'trao đổi ngắn hạn' THEN 'other'
+            WHEN 'trao đổi ngắn hạn' THEN 'exchange'
             ELSE v.level
         END
     FROM unnest(s.study_levels) AS v(level)
