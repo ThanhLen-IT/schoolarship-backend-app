@@ -1,4 +1,6 @@
 const pool = require("../config/db");
+const { normalizeStudyLevels: normalizeCanonicalStudyLevels, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
+const { approvePendingScholarship } = require("../services/scholarshipApprovalService");
 
 // ======================================================
 // CẤU HÌNH
@@ -65,29 +67,7 @@ function isValidDate(value) {
 
 // Chuẩn hóa mảng study_levels
 function normalizeStudyLevels(value) {
-  if (!Array.isArray(value)) {
-    throw new Error("study_levels phải là một mảng.");
-  }
-
-  const values = [
-    ...new Set(
-      value.map((item) => String(item).trim().toLowerCase()).filter(Boolean),
-    ),
-  ];
-
-  const invalidValues = values.filter(
-    (item) => !ALLOWED_STUDY_LEVELS.includes(item),
-  );
-
-  if (invalidValues.length > 0) {
-    throw new Error(`Bậc học không hợp lệ: ${invalidValues.join(", ")}`);
-  }
-
-  if (values.length === 0) {
-    throw new Error("Phải chọn ít nhất một bậc học.");
-  }
-
-  return values;
+  return normalizeCanonicalStudyLevels(value);
 }
 
 // Chuẩn hóa mảng majors
@@ -234,6 +214,16 @@ function getSortQuery(sort) {
   }
 }
 
+// Do not expose original untrusted HTML or moderation details in mobile APIs.
+// Re-sanitize at read time to cover records published before this fix.
+function toPublicScholarship(row) {
+  const { original_content_html, reviewed_by, reviewed_at, rejection_reason, ...publicData } = row;
+  return {
+    ...publicData,
+    content_html: sanitizeScholarshipHtml(publicData.content_html, publicData.source_url),
+  };
+}
+
 // ======================================================
 // 1. MOBILE APP - LẤY DANH SÁCH HỌC BỔNG ĐÃ CÔNG KHAI
 // GET /api/scholarships
@@ -285,7 +275,7 @@ exports.getScholarships = async (req, res) => {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      data: dataResult.rows,
+      data: dataResult.rows.map(toPublicScholarship),
     });
   } catch (err) {
     console.error("Lỗi getScholarships:", err.message);
@@ -332,7 +322,7 @@ exports.getScholarshipById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: result.rows[0],
+      data: toPublicScholarship(result.rows[0]),
     });
   } catch (err) {
     console.error("Lỗi getScholarshipById:", err.message);
@@ -479,6 +469,7 @@ exports.createScholarship = async (req, res) => {
     majors,
     source_url,
     source_name,
+    content_html,
   } = req.body;
 
   if (!normalizeText(title)) {
@@ -535,13 +526,14 @@ exports.createScholarship = async (req, res) => {
                 majors,
                 source_url,
                 source_name,
+                content_html,
                 status,
                 created_at,
                 updated_at
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9,
-                $10, $11, $12, $13, $14, $15,
+                $10, $11, $12, $13, $14, $15, $16,
                 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
             RETURNING *`,
@@ -561,6 +553,7 @@ exports.createScholarship = async (req, res) => {
         normalizedMajors,
         normalizeText(source_url),
         normalizeText(source_name),
+        sanitizeScholarshipHtml(content_html, source_url),
       ],
     );
 
@@ -581,7 +574,8 @@ exports.createScholarship = async (req, res) => {
 
     if (
       err.message.includes("study_levels") ||
-      err.message.includes("majors")
+      err.message.includes("majors") ||
+      err.message.includes("content_html")
     ) {
       return res.status(400).json({
         success: false,
@@ -632,6 +626,7 @@ exports.updateScholarship = async (req, res) => {
     majors: "majors",
     source_url: "source_url",
     source_name: "source_name",
+    content_html: "content_html",
   };
 
   const updates = [];
@@ -683,6 +678,8 @@ exports.updateScholarship = async (req, res) => {
         value = normalizeStudyLevels(value);
       } else if (key === "majors") {
         value = normalizeMajors(value);
+      } else if (key === "content_html") {
+        value = sanitizeScholarshipHtml(value, body.source_url);
       } else {
         value = normalizeText(value);
       }
@@ -758,44 +755,23 @@ exports.updateScholarship = async (req, res) => {
 
 exports.approveScholarship = async (req, res) => {
   const { id } = req.params;
-
   if (!isValidId(id)) {
-    return res.status(400).json({
-      success: false,
-      message: "ID học bổng không hợp lệ.",
-    });
+    return res.status(400).json({ success: false, message: "ID học bổng không hợp lệ." });
   }
 
   try {
-    const result = await pool.query(
-      `UPDATE scholarships
-             SET
-                status = 'published',
-                reviewed_by = $2,
-                reviewed_at = CURRENT_TIMESTAMP,
-                published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
-                rejection_reason = NULL,
-                updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'pending'
-             RETURNING *`,
-      [id, req.user.id],
-    );
-
-    if (result.rows.length === 0) {
-      return await statusChangeConflict(id, res, "duyệt");
-    }
+    const result = await approvePendingScholarship(id, req.user.id);
+    if (!result) return await statusChangeConflict(id, res, "duyệt");
 
     return res.status(200).json({
       success: true,
       message: "Đã duyệt và công khai học bổng.",
-      data: result.rows[0],
+      data: result,
     });
   } catch (err) {
     console.error("Lỗi approveScholarship:", err.message);
-
     return res.status(500).json({
-      success: false,
-      message: "Không thể duyệt học bổng.",
+      success: false, message: "Không thể duyệt học bổng."
     });
   }
 };
