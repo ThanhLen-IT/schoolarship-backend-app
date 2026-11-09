@@ -51,6 +51,19 @@ app.get('/health/ready', async (req, res) => {
     }
 });
 
+// Midterm readiness also checks that the additive Ranking migration is installed.
+app.get('/health/midterm', async (req, res) => {
+    try {
+        const pool = require('./config/db');
+        await pool.query('SELECT mentoring_started_at, scholarship_outcome FROM mentee_applications LIMIT 0');
+        await pool.query('SELECT id FROM mentoring_response_requests LIMIT 0');
+        return res.status(200).json({ success: true, status: 'midterm_ready' });
+    } catch (error) {
+        console.error('Midterm readiness check failed:', error.message);
+        return res.status(503).json({ success: false, status: 'midterm_schema_unavailable' });
+    }
+});
+
 // Health check
 app.get('/', (req, res) => {
     res.json({
