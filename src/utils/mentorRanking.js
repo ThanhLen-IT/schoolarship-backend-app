@@ -80,6 +80,11 @@ function scoreMentor(row) {
 function rankMentors(rows) {
   const scored = rows.map(scoreMentor);
   scored.sort((a, b) => {
+    // A mentor with enough observations outranks provisional samples:
+    // 2 perfect reviews must not automatically beat 100 very good reviews.
+    const priority = { established: 0, provisional: 1, insufficient_data: 2 };
+    const tierDifference = priority[a.ranking_status] - priority[b.ranking_status];
+    if (tierDifference !== 0) return tierDifference;
     if (a.ranking_score === null && b.ranking_score !== null) return 1;
     if (a.ranking_score !== null && b.ranking_score === null) return -1;
     if (a.ranking_score !== null && b.ranking_score !== null) {
@@ -94,7 +99,9 @@ function rankMentors(rows) {
   let lastRank = null;
   return scored.map((row, index) => {
     const rank = row.ranking_score === null ? null :
-      (latestScore === row.ranking_score ? lastRank : index + 1);
+      (latestScore === row.ranking_score &&
+       scored[index - 1]?.ranking_status === row.ranking_status
+        ? lastRank : index + 1);
     if (rank !== null) {
       latestScore = row.ranking_score;
       lastRank = rank;
