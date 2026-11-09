@@ -68,6 +68,12 @@ Mentee creates an application:
 The scholarship and Mentor must be published/approved. Duplicate active
 applications are blocked. In production, CV URLs must be private and access-controlled.
 
+A Mentor can be verified independently for several scholarships using the existing
+POST /api/mentors/verify with a specific scholarship_id and evidence_file PDF.
+GET /api/mentors/verify/status?scholarship_id=123 checks that scholarship's latest
+verification. GET /api/mentors?scholarship_id=123 now searches ALL approved
+verifications for that scholarship, not just the Mentor's most recent one.
+
 Both mentee and Mentor can see applications they participate in:
 
     GET /api/mentoring/applications/mine
