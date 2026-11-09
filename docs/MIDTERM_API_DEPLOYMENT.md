@@ -19,7 +19,8 @@ remove columns, or insert simulated data. It creates mentor_response_requests an
 adds mentoring/outcome fields to mentee_applications.
 
 Without the migration, the Ranking/progress API will not work.
-GET /health/ready tests PostgreSQL connectivity, not whether migrations are applied.
+GET /health/ready tests PostgreSQL connectivity. GET /health/midterm separately checks
+whether the Ranking migration columns/table exist (returns HTTP 503 until installed).
 
 ## Scholarship search API
 
@@ -148,7 +149,8 @@ Manual end-to-end checks are also essential:
 4. Check Ranking for the correct scholarship, counts, score, status and rank.
 5. Try a nonexistent scholarship, a non-mentor progressing someone else's
    application, and an invalid date. Expect safe error codes.
-6. Confirm GET /health = 200 and GET /health/ready = 200 when DB is reachable.
+6. Confirm GET /health = 200, GET /health/ready = 200 when DB is reachable,
+   and GET /health/midterm = 200 after migration (503 if migration is missing).
 
 ## EC2 / Android preparation checklist (not executed by this PR)
 
