@@ -5,10 +5,12 @@ const path = require("path");
 const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 const pool = require("../config/db");
+const { normalizeStudyLevels, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const HEADLESS = process.env.HEADLESS === "true";
+// Headless is the safe default for EC2/server use; set HEADLESS=false for local debugging.
+const HEADLESS = process.env.HEADLESS !== "false";
 const DEBUG = process.env.DEBUG_CRAWL === "true";
 
 /* ──────────────────────────────────────────────
@@ -234,7 +236,7 @@ async function crawlScholarships(config) {
     // 3. Ghi vào database với các cột type ARRAY và HTML
     const d = config.defaults || {};
     // Ép kiểu mảng cho study_levels, cú pháp postgres là mảng text
-    const studyLevelsArr = d.study_level ? [d.study_level] : ["unknown"];
+    const studyLevelsArr = normalizeStudyLevels(d.study_levels ?? d.study_level ?? ["unknown"]);
 
     for (const item of items) {
       try {
@@ -254,8 +256,8 @@ async function crawlScholarships(config) {
             config.sourceName,
             item.deadline ?? null, // Lưu ngày
             studyLevelsArr, // Array kiểu text[][cite: 7]
-            item.html ?? null, // Lưu chuỗi HTML gốc[cite: 7]
-            item.html ?? null, // Cùng lưu HTML hiển thị (Sau này Frontend tự bọc style hoặc admin CMS sửa lại)[cite: 7]
+            item.html ?? null, // Preserve original source content for Admin review
+            sanitizeScholarshipHtml(item.html, item.detailUrl), // Safe editable HTML
           ],
         );
         if (result.rowCount > 0) saved++;
@@ -268,15 +270,15 @@ async function crawlScholarships(config) {
     await pool.query(
       `UPDATE scholarship_crawl_logs
              SET finished_at = CURRENT_TIMESTAMP, found_count = $1, saved_count = $2,
-                 failed_count = $3, status = 'completed'
+                 failed_count = $3, status = $5
              WHERE id = $4`,
-      [found, saved, failed, logId],
+      [found, saved, failed, logId, failed > 0 ? 'completed_with_errors' : 'completed'],
     );
 
     console.log(
       `✅ [${config.key}] Xong! Bóc tách ${found} - lưu mới ${saved} - lỗi ${failed}.`,
     );
-    return { key: config.key, status: "completed", found, saved, failed };
+    return { key: config.key, status: failed > 0 ? "completed_with_errors" : "completed", found, saved, failed };
   } catch (error) {
     await pool.query(
       `UPDATE scholarship_crawl_logs
