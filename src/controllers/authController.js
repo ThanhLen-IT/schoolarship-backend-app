@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { normalizeUsername, checkOptionalText } = require("../utils/userProfileValidation");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { randomBytes, createHash } = require("crypto");
@@ -9,80 +10,81 @@ const {
 require("dotenv").config();
 
 exports.register = async (req, res) => {
-  const { email, password, full_name, university } = req.body;
+  const { email, password, full_name, university, username, major } = req.body || {};
 
-  if (!email || !password || !full_name) {
+  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+      typeof password !== "string" || Buffer.byteLength(password, "utf8") < 8 ||
+      Buffer.byteLength(password, "utf8") > 72) {
     return res.status(400).json({
-      success: false,
-      message: "Vui lòng cung cấp đầy đủ email, mật khẩu và họ tên!",
+      success: false, message: "Email không hợp lệ hoặc mật khẩu phải có từ 8 đến 72 byte."
     });
   }
 
+  let fields;
   try {
-    const userExists = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email],
+    fields = {
+      email: email.trim().toLowerCase(),
+      full_name: checkOptionalText(full_name, "Họ tên", 100, false),
+      university: university === undefined ? null : checkOptionalText(university, "Trường đại học", 150),
+      major: major === undefined ? null : checkOptionalText(major, "Ngành học", 150),
+      username: username === undefined ? null : normalizeUsername(username)
+    };
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const inserted = await pool.query(
+      `INSERT INTO users (email, password_hash, full_name, university, major, username, role)
+       VALUES ($1, $2, $3, $4, $5, $6, 'user')
+       RETURNING id, email, username, full_name, university, major, role, is_mentor, created_at`,
+      [fields.email, passwordHash, fields.full_name, fields.university, fields.major, fields.username]
     );
-    if (userExists.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: "Email này đã được đăng ký tài khoản!",
-      });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    const newUser = await pool.query(
-      `INSERT INTO users (email, password_hash, full_name, university, role)
-             VALUES ($1, $2, $3, $4, 'user')
-             RETURNING id, email, full_name, university, role, is_mentor, created_at`,
-      [email, passwordHash, full_name, university || null],
-    );
-
+    const user = inserted.rows[0];
     const token = jwt.sign(
-      {
-        id: newUser.rows[0].id,
-        email: newUser.rows[0].email,
-        role: newUser.rows[0].role,
-        is_mentor: newUser.rows[0].is_mentor,
-      },
+      { id: user.id, email: user.email, role: user.role, is_mentor: user.is_mentor },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" },
+      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
-
-    res.status(201).json({
-      success: true,
-      message: "Đăng ký tài khoản thành công!",
-      data: {
-        user: newUser.rows[0],
-        token,
-      },
+    return res.status(201).json({
+      success: true, message: "Đăng ký tài khoản thành công!", data: { user, token }
     });
   } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({
+        success: false,
+        message: String(err.constraint || "").includes("username")
+          ? "Username này đã được sử dụng!" : "Email này đã được đăng ký!"
+      });
+    }
     console.error("Lỗi Register:", err.message);
-    res.status(500).json({ success: false, message: "Lỗi hệ thống máy chủ" });
+    return res.status(500).json({ success: false, message: "Lỗi hệ thống máy chủ" });
   }
 };
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, identifier, password } = req.body || {};
+  const loginName = email ?? username ?? identifier;
 
-  if (!email || !password) {
+  if (typeof loginName !== 'string' || !loginName.trim() || typeof password !== 'string' || !password) {
     return res.status(400).json({
       success: false,
-      message: "Vui lòng nhập đầy đủ email và mật khẩu!",
+      message: "Vui lòng nhập email/username và mật khẩu!",
     });
   }
 
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const input = loginName.trim();
+    const handle = input.replace(/^@/, '').toLowerCase();
+    const result = await pool.query(
+      "SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR username = $2 LIMIT 1",
+      [input, handle]
+    );
     if (result.rows.length === 0) {
       return res.status(401).json({
         success: false,
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: "Email/username hoặc mật khẩu không chính xác!",
       });
     }
 
@@ -92,7 +94,7 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: "Email/username hoặc mật khẩu không chính xác!",
       });
     }
 
@@ -165,7 +167,7 @@ exports.forgotPassword = async (req, res) => {
        FROM users
        WHERE email = $1 AND is_active = TRUE
        LIMIT 1`,
-      [email.trim()],
+      [email.trim().toLowerCase()],
     );
 
     if (result.rows.length === 0 || result.rows[0].recently_requested) {
@@ -268,7 +270,10 @@ exports.getMe = async (req, res) => {
                 id,
                 email,
                 full_name,
+                username,
                 university,
+                major,
+                skills,
                 avatar_url,
                 bio,
                 role,

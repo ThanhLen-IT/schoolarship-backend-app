@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { toPublicScholarship } = require("../utils/publicScholarship");
 const { normalizeStudyLevels: normalizeCanonicalStudyLevels, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
 const { approvePendingScholarship } = require("../services/scholarshipApprovalService");
 
@@ -212,16 +213,6 @@ function getSortQuery(sort) {
     default:
       return "created_at DESC";
   }
-}
-
-// Do not expose original untrusted HTML or moderation details in mobile APIs.
-// Re-sanitize at read time to cover records published before this fix.
-function toPublicScholarship(row) {
-  const { original_content_html, reviewed_by, reviewed_at, rejection_reason, ...publicData } = row;
-  return {
-    ...publicData,
-    content_html: sanitizeScholarshipHtml(publicData.content_html, publicData.source_url),
-  };
 }
 
 // ======================================================

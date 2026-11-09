@@ -20,6 +20,7 @@ const adminCrawlerRoutes = require("./routes/adminCrawlerRoutes");
 const adminScholarshipRoutes = require("./routes/adminScholarshipRoutes");
 const mentorRoutes = require("./routes/mentorRoutes");
 const adminMentorRoutes = require("./routes/adminMentorRoutes");
+const postRoutes = require("./routes/postRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -28,6 +29,7 @@ app.use("/api/admin/crawler", adminCrawlerRoutes);
 app.use("/api/admin/scholarships", adminScholarshipRoutes);
 app.use("/api/mentors", mentorRoutes);
 app.use("/api/admin/mentors", adminMentorRoutes);
+app.use("/api/posts", postRoutes);
 
 // Health check
 app.get('/', (req, res) => {
