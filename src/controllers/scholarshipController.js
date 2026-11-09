@@ -101,7 +101,25 @@ function normalizeMajors(value) {
 
 // Kiểm tra ID
 function isValidId(id) {
-  return /^\d+$/.test(String(id)) && Number(id) > 0;
+  return /^\d+$/.test(String(id)) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
+}
+
+// Distinguish missing scholarships (404) from invalid lifecycle transitions (409).
+async function statusChangeConflict(id, res, action) {
+  const result = await pool.query(
+    'SELECT id, status FROM scholarships WHERE id = $1',
+    [id],
+  );
+  if (result.rows.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'Không tìm thấy học bổng.',
+    });
+  }
+  return res.status(409).json({
+    success: false,
+    message: `Không thể ${action} học bổng ở trạng thái "${result.rows[0].status}".`,
+  });
 }
 
 // ======================================================
@@ -271,6 +289,9 @@ exports.getScholarships = async (req, res) => {
     });
   } catch (err) {
     console.error("Lỗi getScholarships:", err.message);
+    if (err.message?.includes("không hợp lệ")) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
 
     return res.status(500).json({
       success: false,
@@ -755,16 +776,13 @@ exports.approveScholarship = async (req, res) => {
                 published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
                 rejection_reason = NULL,
                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1
+             WHERE id = $1 AND status = 'pending'
              RETURNING *`,
       [id, req.user.id],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học bổng.",
-      });
+      return await statusChangeConflict(id, res, "duyệt");
     }
 
     return res.status(200).json({
@@ -814,16 +832,13 @@ exports.rejectScholarship = async (req, res) => {
                 reviewed_at = CURRENT_TIMESTAMP,
                 rejection_reason = $3,
                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1
+             WHERE id = $1 AND status = 'pending'
              RETURNING *`,
       [id, req.user.id, rejectionReason],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học bổng.",
-      });
+      return await statusChangeConflict(id, res, "từ chối");
     }
 
     return res.status(200).json({
@@ -862,16 +877,13 @@ exports.archiveScholarship = async (req, res) => {
              SET
                 status = 'archived',
                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1
+             WHERE id = $1 AND status = 'published'
              RETURNING *`,
       [id],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học bổng.",
-      });
+      return await statusChangeConflict(id, res, "lưu trữ");
     }
 
     return res.status(200).json({
