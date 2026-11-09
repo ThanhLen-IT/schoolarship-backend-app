@@ -35,6 +35,22 @@ app.use("/api/posts", postRoutes);
 app.use("/api/mentoring", mentoringRoutes);
 app.use("/api/admin/mentoring", adminMentoringRoutes);
 
+// Liveness: confirms the Express process is running.
+app.get('/health', (req, res) => {
+    return res.status(200).json({ success: true, status: 'up' });
+});
+
+// Readiness: reports whether PostgreSQL is reachable before the demo.
+app.get('/health/ready', async (req, res) => {
+    try {
+        await require('./config/db').query('SELECT 1');
+        return res.status(200).json({ success: true, status: 'ready' });
+    } catch (error) {
+        console.error('Database readiness check failed:', error.message);
+        return res.status(503).json({ success: false, status: 'database_unavailable' });
+    }
+});
+
 // Health check
 app.get('/', (req, res) => {
     res.json({
