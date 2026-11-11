@@ -8,15 +8,49 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { seedDemo, validateTarget, demoPdf } = require('../scripts/seed-demo');
+const { adminFields, createAdmin } = require('../scripts/create-admin');
 
-test('dataset command refuses the real database, production and weak passwords', () => {
+test('dataset command requires explicit opt-in for the current database and always rejects weak passwords', () => {
   const valid = { DB_NAME: 'scholarship_demo', NODE_ENV: 'development', DEMO_PASSWORD: 'FixturePassword123' };
   validateTarget(valid);
   assert.throws(() => validateTarget({ ...valid, DB_NAME: 'scholarship_db' }));
   assert.throws(() => validateTarget({ ...valid, NODE_ENV: 'production' }));
+  validateTarget({ ...valid, DB_NAME: 'scholarship_db', NODE_ENV: 'production' }, ['--allow-current-db']);
+  assert.throws(() => validateTarget({ ...valid, DB_NAME: '' }, ['--allow-current-db']));
+  assert.throws(() => validateTarget({ ...valid, DEMO_PASSWORD: 'short' }, ['--allow-current-db']));
   assert.throws(() => validateTarget({ ...valid, DEMO_PASSWORD: 'short' }));
   assert.throws(() => validateTarget({ ...valid, DEMO_PASSWORD: 'x'.repeat(73) }));
   assert.equal(demoPdf().subarray(0, 5).toString(), '%PDF-');
+});
+
+test('admin creation hashes passwords, keeps existing accounts unchanged and rejects unsafe inputs', { timeout: 60000 }, async t => {
+  const db = new PGlite();
+  t.after(() => db.close());
+  await db.exec(await fs.readFile(path.join(__dirname, 'fixtures/database-v1-schema.sql'), 'utf8'));
+  await db.exec('SET search_path TO public');
+  const env = { ADMIN_EMAIL: ' Admin@Example.Test ', ADMIN_PASSWORD: 'AdminFixturePassword123' };
+  const fields = adminFields(env);
+  assert.equal(fields.email, 'admin@example.test');
+  for (const patch of [{ ADMIN_EMAIL: 'bad' }, { ADMIN_PASSWORD: 'short' }, { ADMIN_PASSWORD: 'x'.repeat(73) }, { ADMIN_NAME: ' ' }]) {
+    assert.throws(() => adminFields({ ...env, ...patch }));
+  }
+  const created = await createAdmin(db, fields);
+  assert.equal(created.created, true);
+  assert.equal(created.user.role, 'admin');
+  assert.equal(created.user.is_active, true);
+  assert.equal(created.user.password_hash, undefined);
+  const getUser = async () => (await db.query('SELECT * FROM users WHERE id=$1', [created.user.id])).rows[0];
+  const original = await getUser();
+  assert.ok(await bcrypt.compare(fields.password, original.password_hash));
+  assert.equal((await createAdmin(db, { ...fields, password: 'DifferentPassword123' })).created, false);
+  assert.deepEqual(await getUser(), original);
+  await db.query("UPDATE users SET role='user' WHERE id=$1", [created.user.id]);
+  await assert.rejects(createAdmin(db, fields), /Email đã thuộc/);
+  assert.equal((await getUser()).role, 'user');
+  assert.equal((await getUser()).password_hash, original.password_hash);
+  await db.query("UPDATE users SET role='admin', is_active=false WHERE id=$1", [created.user.id]);
+  await assert.rejects(createAdmin(db, fields), /Email đã thuộc/);
+  assert.equal((await getUser()).is_active, false);
 });
 
 test('demo dataset uses the supplied schema, rolls back cleanly and supports real admin/mobile APIs', { timeout: 60000 }, async t => {
@@ -85,6 +119,18 @@ test('demo dataset uses the supplied schema, rolls back cleanly and supports rea
   const admin = users.find(u => u.role === 'admin');
   const student = users.find(u => u.email.startsWith('student01@'));
   assert.ok(await bcrypt.compare(options.password, student.password_hash));
+  const realAdmin = adminFields({ ADMIN_EMAIL: 'owner@example.test', ADMIN_PASSWORD: 'OwnerFixturePassword123' });
+  await createAdmin(db, realAdmin);
+  const login = await fetch('http://127.0.0.1:' + server.address().port + '/api/auth/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: realAdmin.email, password: realAdmin.password }),
+  });
+  assert.equal(login.status, 200);
+  const loginBody = await login.json();
+  assert.equal(loginBody.data.user.role, 'admin');
+  assert.equal((await fetch('http://127.0.0.1:' + server.address().port + '/api/admin/scholarships', {
+    headers: { Authorization: 'Bearer ' + loginBody.data.token },
+  })).status, 200);
   const token = user => jwt.sign({ id: user.id }, process.env.JWT_SECRET);
   async function api(route, user = admin, method = 'GET') {
     const response = await fetch('http://127.0.0.1:' + server.address().port + route, { method, headers: { Authorization: 'Bearer ' + token(user) } });

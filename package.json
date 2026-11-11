@@ -9,7 +9,9 @@
     "test": "node --test",
     "migrate:mobile": "node scripts/migrate-mobile.js",
     "check:email": "node scripts/check-email.js",
-    "seed:demo": "node scripts/seed-demo.js"
+    "seed:demo": "node scripts/seed-demo.js",
+    "create:admin": "node scripts/create-admin.js",
+    "backup:db": "node scripts/backup-db.js"
   },
   "repository": {
     "type": "git",

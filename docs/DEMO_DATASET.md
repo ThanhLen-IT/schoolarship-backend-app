@@ -1,8 +1,11 @@
 # Dataset kiểm thử Global Success
 
 `npm run seed:demo` tạo dữ liệu giả lập theo schema Database-v1.0 và các migration
-hiện có. Không gọi crawler, gửi email hoặc thanh toán. Dùng database riêng
-kết thúc bằng `_demo` hoặc `_test`, với `NODE_ENV` khác `production`.
+hiện có. Không gọi crawler, gửi email hoặc thanh toán. Mặc định dùng database
+kết thúc bằng `_demo` hoặc `_test`, với `NODE_ENV` khác `production`. Nếu chủ động
+test trên database hiện tại của EC2, dùng `--allow-current-db` như hướng dẫn dưới.
+Tùy chọn này cũng cho phép chạy khi `.env` có `NODE_ENV=production`; không cần
+đổi môi trường hay tên database để vượt kiểm tra.
 
 ## Dữ liệu có sẵn
 
@@ -32,7 +35,96 @@ không trỏ tới dịch vụ thật. Ảnh để trống để kiểm thử gi
 Dataset không bổ sung các API còn thiếu (ví dụ báo cáo app_events); nó cung cấp
 bản ghi để test những API và màn hình thực sự đã được triển khai.
 
-## Chuẩn bị database demo một lần
+## Nạp vào database hiện tại trên EC2
+
+Cách này dùng nguyên DB_NAME trong `.env`, service `scholarship-api.service`,
+cổng 5000 và URL `https://scholarship-uit.duckdns.org/api`. Không cần database mới,
+backend cổng 5001 hoặc SSH tunnel. Tất cả app/webadmin cùng API sẽ thấy dữ liệu mẫu,
+và số liệu thống kê cũng bao gồm dữ liệu mẫu. Các tài khoản demo có thể đăng nhập
+qua API này, nên chọn mật khẩu demo riêng đủ mạnh và chỉ chia sẻ cho nhóm test.
+
+1. Cập nhật code trong thư mục backend:
+
+   ```bash
+   cd ~/apps/schoolarship-backend-app
+   git fetch origin
+   git switch feat/mobile-completion
+   git pull --ff-only origin feat/mobile-completion
+   npm ci --omit=dev
+   ```
+
+   Dừng nếu một lệnh báo lỗi, không chạy tiếp. Không ghi đè thay đổi Git cục bộ.
+
+2. Sao lưu database hiện tại, sau đó cập nhật migration:
+
+   ```bash
+   npm run backup:db
+   npm run migrate:mobile
+   ```
+
+   Backup cần `pg_dump` cùng phiên bản chính với PostgreSQL server (hoặc bản mới
+   hơn tương thích); nếu backup thất bại thì xử lý trước khi tiếp tục. Script lấy
+   kết nối từ `.env`, không in mật khẩu, lưu bản `.dump` riêng với quyền 600 tại
+   `~/backups/global-success/` và in đường dẫn. Giữ thêm thư mục uploads/media khi
+   cần khôi phục cả tệp. Không import lại schema lên database đã có bảng.
+   Migration có bước chuẩn hóa bậc học tiếng Việt sang mã canonical; không xóa
+   tài khoản hay học bổng.
+
+3. Tạo admin riêng bằng email bạn chọn (khác email admin của dataset):
+
+   ```bash
+   read -rp 'Email admin: ' ADMIN_EMAIL
+   read -rsp 'Mat khau admin (12-72 byte): ' ADMIN_PASSWORD
+   printf '\n'
+   export ADMIN_EMAIL ADMIN_PASSWORD
+   npm run create:admin
+   unset ADMIN_EMAIL ADMIN_PASSWORD
+   ```
+
+   Không cần đặt các biến ADMIN_* vào `.env`. Tên mặc định là Global Success
+   Admin; có thể truyền ADMIN_NAME qua biến môi trường nếu muốn đổi tên.
+   Email mới tạo tài khoản role=admin, active và mật khẩu bcrypt. Nếu đã có
+   admin active cùng email, script giữ nguyên mật khẩu; nếu email thuộc user khác
+   hoặc tài khoản bị khóa, script dừng, không nâng quyền hay đổi mật khẩu.
+
+4. Nhập mật khẩu chung của các tài khoản mẫu, chạy thử rồi nạp:
+
+   ```bash
+   read -rsp 'Mat khau demo rieng (12-72 byte): ' DEMO_PASSWORD
+   printf '\n'
+   export DEMO_PASSWORD
+   npm run seed:demo -- --allow-current-db --dry-run
+   ```
+
+   Kiểm tra dòng `Database đích` đúng database hiện tại và dry run thành công.
+   Sau đó mới lưu dataset:
+
+   ```bash
+   npm run seed:demo -- --allow-current-db --apply
+   unset DEMO_PASSWORD
+   sudo systemctl restart scholarship-api.service
+   ```
+
+   Mật khẩu admin riêng và mật khẩu demo có thể khác nhau. Seed chỉ thêm dữ liệu,
+   không xóa hay ghi đè tài khoản/học bổng cũ. Nếu trùng email/username hoặc lỗi
+   constraint, transaction hoàn tác bản ghi và dọn PDF của lần chạy đó. Chạy lại
+   sau khi đã nạp giữ nguyên dataset, kể cả mật khẩu và các chỉnh sửa trên UI.
+   Dry run có thể làm tăng sequence ID dù bản ghi được rollback.
+
+5. Webadmin Windows dùng `.env.local`:
+
+   ```env
+   VITE_API_BASE_URL=https://scholarship-uit.duckdns.org/api
+   ```
+
+   Khởi động lại Vite nếu vừa đổi cấu hình. Đăng xuất rồi đăng nhập bằng admin
+   riêng đã tạo ở bước 3; cũng có thể dùng `admin@global-success.demo.invalid`
+   với mật khẩu demo. Hai máy khác mạng cùng gọi API trên sẽ cùng thấy dataset.
+   Email `.invalid` không nhận được thư; thử quên mật khẩu bằng tài khoản có email
+   thật. Không chạy TRUNCATE hoặc xóa toàn bộ DB để dọn thử nghiệm khi vẫn còn dữ
+   liệu cần giữ; bản sao lưu ở bước 2 dùng cho việc khôi phục khi cần.
+
+## Phương án khác: chuẩn bị database demo riêng một lần
 
 Pull nhánh `feat/mobile-completion` của backend. Nếu database demo đã có đủ schema
 và migration thì chuyển thẳng sang bước nạp dữ liệu.

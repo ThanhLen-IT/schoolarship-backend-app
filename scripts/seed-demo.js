@@ -11,9 +11,11 @@ const TABLES = ['users', 'scholarships', 'mentor_verifications', 'mentee_applica
   'comments', 'post_likes', 'conversations', 'chat_messages', 'notifications',
   'support_tickets', 'transactions', 'scholarship_crawl_logs', 'app_events'];
 
-function validateTarget(env) {
-  if (env.NODE_ENV === 'production' || !/_(demo|test)$/.test(env.DB_NAME || '')) {
-    throw new Error('Chỉ nạp vào DB_NAME kết thúc _demo hoặc _test và NODE_ENV khác production.');
+function validateTarget(env, args = []) {
+  if (!env.DB_NAME?.trim()) throw new Error('Thiếu DB_NAME trong cấu hình.');
+  if (!args.includes('--allow-current-db') &&
+      (env.NODE_ENV === 'production' || !/_(demo|test)$/.test(env.DB_NAME))) {
+    throw new Error('Mặc định chỉ nạp vào database _demo/_test ngoài production. Để thêm dataset vào database hiện tại, dùng --allow-current-db.');
   }
   const bytes = Buffer.byteLength(env.DEMO_PASSWORD || '', 'utf8');
   if (bytes < 12 || bytes > 72) throw new Error('Đặt DEMO_PASSWORD từ 12 đến 72 byte UTF-8.');
@@ -73,7 +75,7 @@ async function seedDemo(client, { password, apply = false, baseDate = new Date()
     const existing = await client.query('SELECT id FROM users WHERE email=$1', [ADMIN]);
     const marker = await client.query('SELECT id FROM scholarships WHERE source_url=$1', [PREFIX + '/scholarships/1']);
     if (existing.rows.length || marker.rows.length) {
-      if (!existing.rows.length || !marker.rows.length) throw new Error('Có một phần dữ liệu demo hoặc email bị trùng. Dùng database demo mới; không ghi đè dữ liệu đang có.');
+      if (!existing.rows.length || !marker.rows.length) throw new Error('Có một phần dữ liệu demo hoặc email bị trùng. Dừng để kiểm tra; không ghi đè dữ liệu đang có.');
       await client.query('ROLLBACK');
       return { alreadySeeded: true, adminEmail: ADMIN, scholarshipId: marker.rows[0].id };
     }
@@ -243,9 +245,9 @@ async function seedDemo(client, { password, apply = false, baseDate = new Date()
 }
 
 async function main() {
-  validateTarget(process.env);
   const args = process.argv.slice(2);
-  if (args.some(arg => !['--apply', '--dry-run'].includes(arg)) || (args.includes('--apply') && args.includes('--dry-run'))) throw new Error('Dùng --dry-run hoặc --apply.');
+  if (args.some(arg => !['--apply', '--dry-run', '--allow-current-db'].includes(arg)) || (args.includes('--apply') && args.includes('--dry-run'))) throw new Error('Dùng --dry-run hoặc --apply, kèm --allow-current-db nếu nạp vào database hiện tại.');
+  validateTarget(process.env, args);
   const { Client } = require('pg');
   const client = new Client({ host: process.env.DB_HOST, port: process.env.DB_PORT,
     database: process.env.DB_NAME, user: process.env.DB_USER, password: process.env.DB_PASSWORD });
@@ -253,6 +255,7 @@ async function main() {
     await client.connect();
     const actual = (await client.query('SELECT current_database() AS name')).rows[0].name;
     if (actual !== process.env.DB_NAME) throw new Error('Database thực tế không khớp DB_NAME.');
+    console.log('Database đích: ' + actual + '. Chế độ: ' + (args.includes('--apply') ? 'lưu dataset' : 'dry run (rollback)') + '.');
     const result = await seedDemo(client, { password: process.env.DEMO_PASSWORD, apply: args.includes('--apply'), baseDate: process.env.DEMO_DATE || new Date() });
     console.log(JSON.stringify(result, null, 2));
     console.log(result.alreadySeeded ? 'Dataset đã có; giữ nguyên dữ liệu, không tạo bản trùng.' : result.applied ? 'Đã nạp dataset Global Success.' : 'Dry run đạt: dữ liệu và tệp vừa tạo đã được hoàn tác. Thêm --apply để lưu.');
