@@ -1,5 +1,20 @@
 # Password reset integration
 
+## Global Success email
+Password-reset messages use the official Global Success name, a Vietnamese HTML
+layout with a reset button, and a plain-text alternative. Both versions explain
+the 15-minute expiry, single-use link, and how to paste the link into the Android
+app when an email client does not open it. No external images or tracking assets
+are included in the template.
+
+For the current Android app, use `PASSWORD_RESET_URL=scholarship://reset-password`.
+After editing `.env`, restart `scholarship-api.service`; request a new email to
+see the new template. Set the sender display name to Global Success, for example
+`PASSWORD_RESET_FROM="Global Success <onboarding@resend.dev>"` for Resend testing.
+The testing sender only delivers to the Resend account's own email. For other
+recipients, configure a verified sending domain and use its address instead.
+The template does not change these provider restrictions.
+
 ## Security fix
 Previously `POST /api/auth/forgot-password` accepted `{ "email", "new_password" }` and
 changed the password without verifying ownership. **That interface is unsafe and has been replaced.**

@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { passwordResetEmailTemplate } = require("../utils/passwordResetEmailTemplate");
 
 function isPasswordResetEmailConfigured() {
   return Boolean(
@@ -21,11 +22,7 @@ async function sendPasswordResetEmail(email, token) {
     {
       from: process.env.PASSWORD_RESET_FROM,
       to: [email],
-      subject: "Dat lai mat khau Scholarship Gateway",
-      text:
-        "Ban da yeu cau dat lai mat khau. Mo lien ket sau trong 15 phut:\n" +
-        resetUrl.toString() +
-        "\n\nNeu ban khong yeu cau, vui long bo qua email nay.",
+      ...passwordResetEmailTemplate(resetUrl.toString()),
     },
     {
       headers: {
