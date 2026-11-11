@@ -8,7 +8,8 @@
     "dev": "nodemon",
     "test": "node --test",
     "migrate:mobile": "node scripts/migrate-mobile.js",
-    "check:email": "node scripts/check-email.js"
+    "check:email": "node scripts/check-email.js",
+    "seed:demo": "node scripts/seed-demo.js"
   },
   "repository": {
     "type": "git",

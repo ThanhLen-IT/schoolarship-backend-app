@@ -22,10 +22,15 @@ sudo journalctl -u scholarship-api.service -n 50 -f -o cat
 ```
 
 `migrate:mobile` applies the existing ranking/study-level migrations and then
-`20261111_mobile_completion.sql`. It can be run again; no existing tables are
+`20261111_mobile_completion.sql`, followed by `20261111_crawler_status_width.sql`
+to accommodate the crawler's 21-character `completed_with_errors` state. It can be run again; no existing tables are
 dropped. The new migration adds message idempotency/cursor indexes and transactional
 notifications for mentoring/verification changes. It does not create demo accounts.
 Normal journal retention and the existing email sender configuration still apply.
+
+For an isolated demo/test database, see [DEMO_DATASET.md](DEMO_DATASET.md).
+`npm run seed:demo` supplies synthetic admin/mobile scenarios; it is separate from
+startup and migration, and never runs automatically in the API service.
 
 Uploaded avatars are re-encoded into `media/avatars/`. Keep that runtime directory
 and the private `uploads/` directory when deploying/backing up the instance.
