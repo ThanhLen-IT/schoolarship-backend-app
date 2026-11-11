@@ -11,7 +11,8 @@
     "check:email": "node scripts/check-email.js",
     "seed:demo": "node scripts/seed-demo.js",
     "create:admin": "node scripts/create-admin.js",
-    "backup:db": "node scripts/backup-db.js"
+    "backup:db": "node scripts/backup-db.js",
+    "repair:ybox-content": "node scripts/repair-ybox-content.js"
   },
   "repository": {
     "type": "git",

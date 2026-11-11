@@ -26,7 +26,7 @@ const COMMON_YBOX_CONFIG = {
     link: "h2.post-title a",
     deadline: ".due-date span",
     // Cào ở trang chi tiết
-    detailContent: ".content-wrapper",
+    detailContent: "#post-content",
   },
 };
 
