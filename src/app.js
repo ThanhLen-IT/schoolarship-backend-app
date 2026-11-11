@@ -8,9 +8,15 @@ require("./config/db");
 const app = express();
 
 // Middlewares
+// Register before CORS/body parsers so preflight and malformed JSON are logged.
+const { createRequestLogger } = require('./middlewares/requestLogger');
+const { errorHandler } = require('./middlewares/errorHandler');
+app.use(createRequestLogger());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.get('/media/avatars/:file', require('./controllers/mobileFilesController').serveAvatar);
 
 // Khai báo Routes
 const authRoutes = require("./routes/authRoutes");
@@ -35,6 +41,8 @@ app.use("/api/posts", postRoutes);
 app.use("/api/mentoring", mentoringRoutes);
 app.use("/api/admin/mentoring", adminMentoringRoutes);
 
+app.use('/api', require('./routes/mobileRoutes'));
+
 // Liveness: confirms the Express process is running.
 app.get('/health', (req, res) => {
     return res.status(200).json({ success: true, status: 'up' });
@@ -46,7 +54,7 @@ app.get('/health/ready', async (req, res) => {
         await require('./config/db').query('SELECT 1');
         return res.status(200).json({ success: true, status: 'ready' });
     } catch (error) {
-        console.error('Database readiness check failed:', error.message);
+        req.logError?.(error);
         return res.status(503).json({ success: false, status: 'database_unavailable' });
     }
 });
@@ -59,7 +67,7 @@ app.get('/health/midterm', async (req, res) => {
         await pool.query('SELECT id FROM mentoring_response_requests LIMIT 0');
         return res.status(200).json({ success: true, status: 'midterm_ready' });
     } catch (error) {
-        console.error('Midterm readiness check failed:', error.message);
+        req.logError?.(error);
         return res.status(503).json({ success: false, status: 'midterm_schema_unavailable' });
     }
 });
@@ -75,13 +83,7 @@ app.get('/', (req, res) => {
 });
 
 // Middleware xử lý lỗi tập trung
-app.use((err, req, res, next) => {
-    console.error('Unhandled Error:', err.stack);
-    res.status(500).json({
-        success: false,
-        message: err.message || 'Lỗi máy chủ nội bộ!'
-    });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

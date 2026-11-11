@@ -90,7 +90,7 @@ exports.applyMentorVerification = async (req, res) => {
         if (client) {
             try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
         }
-        console.error('Lỗi applyMentorVerification:', err.message);
+        req.logError?.(err);
         return reject(500, 'Lỗi máy chủ!');
     } finally {
         if (client) client.release();
@@ -118,7 +118,7 @@ exports.getMyVerificationStatus = async (req, res) => {
         }
         return res.json({ success: true, has_applied: true, data: result.rows[0] });
     } catch (err) {
-        console.error('Lỗi getMyVerificationStatus:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     }
 };
@@ -202,7 +202,7 @@ exports.getMentors = async (req, res) => {
         );
         return res.json({ success: true, page, limit, total: count.rows[0].total, data: result.rows });
     } catch (err) {
-        console.error('Lỗi getMentors:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     }
 };
@@ -235,7 +235,7 @@ exports.getMentorDetail = async (req, res) => {
         );
         return res.json({ success: true, data: { mentor: result.rows[0], reviews: reviews.rows } });
     } catch (err) {
-        console.error('Lỗi getMentorDetail:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     }
 };
@@ -315,7 +315,7 @@ exports.createMentorReview = async (req, res) => {
         if (client) {
             try { await client.query('ROLLBACK'); } catch (_) { /* connection already closed */ }
         }
-        console.error('Lỗi createMentorReview:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     } finally {
         if (client) client.release();

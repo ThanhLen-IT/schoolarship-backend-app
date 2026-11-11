@@ -29,7 +29,7 @@ exports.updateProfile = async (req, res) => {
         if (err.code === '23505') {
             return res.status(409).json({ success: false, message: 'Username này đã được sử dụng!' });
         }
-        console.error('Lỗi updateProfile:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
@@ -79,7 +79,7 @@ exports.saveScholarship = async (req, res) => {
             message: result.rows.length ? 'Đã lưu học bổng!' : 'Học bổng đã được lưu trước đó!'
         });
     } catch (err) {
-        console.error('Lỗi saveScholarship:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
@@ -99,7 +99,7 @@ exports.unsaveScholarship = async (req, res) => {
         );
         return res.status(200).json({ success: true, message: 'Đã bỏ lưu học bổng!' });
     } catch (err) {
-        console.error('Lỗi unsaveScholarship:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };
@@ -124,7 +124,7 @@ exports.getSavedScholarships = async (req, res) => {
             data: result.rows.map(toPublicScholarship)
         });
     } catch (err) {
-        console.error('Lỗi getSavedScholarships:', err.message);
+        req.logError?.(err);
         res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
     }
 };

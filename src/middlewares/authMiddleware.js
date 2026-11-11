@@ -30,7 +30,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại!' });
         }
         if (!user.is_active) {
-            return res.status(403).json({ success: false, message: 'Tài khoản đã bị vô hiệu hóa!' });
+            return res.status(403).json({ success: false, code: 'ACCOUNT_INACTIVE', message: 'Tài khoản đã bị vô hiệu hóa!' });
         }
         req.user = {
             id: user.id,
@@ -40,7 +40,7 @@ const verifyToken = async (req, res, next) => {
         };
         return next();
     } catch (err) {
-        console.error('Lỗi xác thực người dùng:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xác thực.' });
     }
 };
@@ -66,7 +66,7 @@ const authorizeMentor = async (req, res, next) => {
         }
         return next();
     } catch (err) {
-        console.error('Lỗi kiểm tra Mentor:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xác minh Mentor.' });
     }
 };

@@ -6,6 +6,7 @@ const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 const pool = require("../config/db");
 const { normalizeStudyLevels, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
+const { isYboxSource, extractYboxArticle } = require("../utils/yboxContent");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -175,16 +176,19 @@ async function getDetailHtml(page, detailUrl, selector) {
       timeout: 30000,
     });
 
-    // Trích xuất thẻ nội dung (Vd: .content-wrapper)
+    await page.waitForSelector(selector, { timeout: 15000 });
+
+    // Only the actual article, never the surrounding site's UI/profile.
     const htmlContent = await page.evaluate((sel) => {
       const element = document.querySelector(sel);
       return element ? element.outerHTML : "";
     }, selector);
 
-    return htmlContent;
+    if (!htmlContent.trim()) throw new Error('Nội dung chi tiết trống.');
+    return isYboxSource(detailUrl) ? extractYboxArticle(htmlContent) : htmlContent;
   } catch (e) {
     console.error(`  ❌ Lỗi tải chi tiết ${detailUrl}:`, e.message);
-    return null;
+    throw e;
   }
 }
 
@@ -230,12 +234,15 @@ async function crawlScholarships(config) {
     // 2. Chui vào từng link lấy HTML Detail
     if (config.selectors.detailContent) {
       for (let i = 0; i < items.length; i++) {
-        const detailHtml = await getDetailHtml(
-          page,
-          items[i].detailUrl,
-          config.selectors.detailContent,
-        );
-        items[i].html = detailHtml;
+        try {
+          items[i].html = await getDetailHtml(
+            page,
+            items[i].detailUrl,
+            config.selectors.detailContent,
+          );
+        } catch {
+          items[i].detailFailed = true;
+        }
         await delay(1500); // Tránh rate-limit
       }
     }
@@ -249,6 +256,10 @@ async function crawlScholarships(config) {
     const studyLevelsArr = normalizeStudyLevels(d.study_levels ?? d.study_level ?? ["unknown"]);
 
     for (const item of items) {
+      if (item.detailFailed) {
+        failed++;
+        continue;
+      }
       try {
         const result = await pool.query(
           `INSERT INTO scholarships (
@@ -280,9 +291,9 @@ async function crawlScholarships(config) {
     await pool.query(
       `UPDATE scholarship_crawl_logs
              SET finished_at = CURRENT_TIMESTAMP, found_count = $1, saved_count = $2,
-                 failed_count = $3, status = 'completed'
+                 failed_count = $3, status = $5
              WHERE id = $4`,
-      [found, saved, failed, logId],
+      [found, saved, failed, logId, failed > 0 ? 'completed_with_errors' : 'completed'],
     );
 
     console.log(

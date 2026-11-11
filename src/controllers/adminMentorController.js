@@ -36,7 +36,7 @@ exports.listVerifications = async (req, res) => {
         ]);
         return res.json({ success: true, page, limit, total: count.rows[0].total, data: result.rows });
     } catch (err) {
-        console.error('Lỗi listVerifications:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     }
 };
@@ -102,7 +102,7 @@ async function decideVerification(req, res, decision) {
         if (client) {
             try { await client.query('ROLLBACK'); } catch (_) { /* connection already closed */ }
         }
-        console.error('Lỗi duyệt Mentor:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     } finally {
         if (client) client.release();
@@ -138,7 +138,7 @@ exports.downloadEvidence = async (req, res) => {
             }
         });
     } catch (err) {
-        console.error('Lỗi downloadEvidence:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
     }
 };
