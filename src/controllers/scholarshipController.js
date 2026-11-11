@@ -171,7 +171,7 @@ function buildFilters(queryParams, publicOnly = false) {
     }
 
     addCondition(
-      `? = ANY(COALESCE(study_levels, ARRAY[]::TEXT[]))`,
+      `(? = ANY(COALESCE(study_levels, ARRAY[]::TEXT[])) OR 'all' = ANY(COALESCE(study_levels, ARRAY[]::TEXT[])))`,
       studyLevel.toLowerCase(),
     );
   }

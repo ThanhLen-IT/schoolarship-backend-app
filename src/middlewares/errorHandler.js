@@ -6,12 +6,24 @@ function errorHandler(err, req, res, next) {
   // Close the incomplete response without forwarding the sensitive error.
   if (res.headersSent) return res.destroy();
   const errorStatus = err.status || err.statusCode;
-  const status = err.code === 'LIMIT_FILE_SIZE' ? 413
-    : Number.isInteger(errorStatus) && errorStatus >= 400 && errorStatus <= 599 ? errorStatus : 500;
+  const status =
+    err.code === "LIMIT_FILE_SIZE"
+      ? 413
+      : Number.isInteger(errorStatus) &&
+          errorStatus >= 400 &&
+          errorStatus <= 599
+        ? errorStatus
+        : 500;
   return res.status(status).json({
     success: false,
-    message: status === 413 ? 'Dữ liệu hoặc tệp tải lên quá lớn.'
-      : status >= 500 ? 'Lỗi máy chủ nội bộ!' : 'Yêu cầu không hợp lệ.'
+    message:
+      status < 500 && typeof err.publicMessage === "string"
+        ? err.publicMessage
+        : status === 413
+          ? "Dữ liệu hoặc tệp tải lên quá lớn."
+          : status >= 500
+            ? "Lỗi máy chủ nội bộ!"
+            : "Yêu cầu không hợp lệ.",
   });
 }
 

@@ -30,7 +30,7 @@ const verifyToken = async (req, res, next) => {
             return res.status(401).json({ success: false, message: 'Tài khoản không tồn tại!' });
         }
         if (!user.is_active) {
-            return res.status(403).json({ success: false, message: 'Tài khoản đã bị vô hiệu hóa!' });
+            return res.status(403).json({ success: false, code: 'ACCOUNT_INACTIVE', message: 'Tài khoản đã bị vô hiệu hóa!' });
         }
         req.user = {
             id: user.id,

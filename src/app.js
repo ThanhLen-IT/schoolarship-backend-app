@@ -16,6 +16,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/media/avatars/:file', require('./controllers/mobileFilesController').serveAvatar);
+
 // Khai báo Routes
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -38,6 +40,8 @@ app.use("/api/admin/mentors", adminMentorRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/mentoring", mentoringRoutes);
 app.use("/api/admin/mentoring", adminMentoringRoutes);
+
+app.use('/api', require('./routes/mobileRoutes'));
 
 // Liveness: confirms the Express process is running.
 app.get('/health', (req, res) => {
