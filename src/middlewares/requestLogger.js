@@ -6,7 +6,8 @@ const methods = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIO
 const errorNames = new Set(['Error', 'TypeError', 'SyntaxError', 'RangeError', 'ReferenceError', 'URIError', 'MulterError', 'AxiosError']);
 const errorCodes = new Set([
   '23505', '23503', '22P02', '42P01', '42703', 'ECONNREFUSED', 'ETIMEDOUT',
-  'ENOENT', 'LIMIT_FILE_SIZE', 'LIMIT_UNEXPECTED_FILE', 'ERR_BAD_REQUEST', 'ERR_BAD_RESPONSE', 'ECONNABORTED'
+  'ENOENT', 'LIMIT_FILE_SIZE', 'LIMIT_UNEXPECTED_FILE', 'ERR_BAD_REQUEST', 'ERR_BAD_RESPONSE', 'ECONNABORTED',
+  'EAUTH', 'ESOCKET', 'ECONNECTION', 'ETLS', 'EENVELOPE', 'EMESSAGE', 'EDNS'
 ]);
 const filterKeys = ['search', 'country', 'continent', 'type', 'study_level', 'major', 'deadline_from', 'deadline_to', 'sort', 'page', 'limit', 'status'];
 const relatedIds = ['scholarship_id', 'mentor_id', 'application_id'];
@@ -53,6 +54,10 @@ function createRequestLogger({ write = line => process.stdout.write(line) } = {}
       };
       if (errorCodes.has(error?.code)) errorInfo.error_code = error.code;
       if (stage === 'password_reset_email') errorInfo.error_stage = stage;
+      if (stage === 'password_reset_email' && Number.isInteger(error?.responseCode) &&
+          error.responseCode >= 400 && error.responseCode <= 599) {
+        errorInfo.smtp_status = error.responseCode;
+      }
       if (Number.isInteger(error?.response?.status) && error.response.status >= 400 && error.response.status <= 599) {
         errorInfo.upstream_status = error.response.status;
       }

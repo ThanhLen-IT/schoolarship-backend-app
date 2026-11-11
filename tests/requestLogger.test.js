@@ -300,6 +300,24 @@ test('an accepted reset request still flags email delivery failure without leaki
   assert.doesNotMatch(lines[0], /private-|Authorization|config/);
 });
 
+test('SMTP failure logs safe status and error code without credentials or mail content', async t => {
+  const { url, records, lines } = await startApp(t, app => {
+    app.post('/api/auth/forgot-password', (req, res) => {
+      req.logError(Object.assign(new Error('private-app-password'), {
+        code: 'EAUTH', responseCode: 535,
+        response: '535 private-sender@example.test private-reset-token',
+      }), 'password_reset_email');
+      res.json({ success: true });
+    });
+  });
+  await (await fetch(url + '/api/auth/forgot-password', { method: 'POST' })).json();
+  await tick();
+  assert.equal(records[0].error_code, 'EAUTH');
+  assert.equal(records[0].smtp_status, 535);
+  assert.equal(records[0].error_stage, 'password_reset_email');
+  assert.doesNotMatch(lines[0], /private-|response"/);
+});
+
 test('errors after headers destroy the response without forwarding raw errors to Express', () => {
   const error = new Error('private-payload');
   let closed = false;
