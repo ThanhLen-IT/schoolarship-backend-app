@@ -21,8 +21,8 @@ function validHttpUrl(value) {
   }
 }
 
-function dbError(res, error, context) {
-  console.error(context + ':', error.message);
+function dbError(req, res, error) {
+  req.logError?.(error);
   if (error.code === '42P01' || error.code === '42703') {
     return res.status(503).json({
       success: false,
@@ -98,7 +98,7 @@ exports.createApplication = async (req, res) => {
     if (client) {
       try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
     }
-    return dbError(res, error, 'createApplication');
+    return dbError(req, res, error);
   } finally {
     if (client) client.release();
   }
@@ -120,7 +120,7 @@ exports.getMyApplications = async (req, res) => {
     );
     return res.json({ success: true, total: result.rows.length, data: result.rows });
   } catch (error) {
-    return dbError(res, error, 'getMyApplications');
+    return dbError(req, res, error);
   }
 };
 
@@ -169,7 +169,7 @@ exports.updateApplicationProgress = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'updateApplicationProgress');
+    return dbError(req, res, error);
   }
 };
 
@@ -198,7 +198,7 @@ exports.recordOutcome = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'recordOutcome');
+    return dbError(req, res, error);
   }
 };
 
@@ -249,7 +249,7 @@ exports.createResponseRequest = async (req, res) => {
     if (client) {
       try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
     }
-    return dbError(res, error, 'createResponseRequest');
+    return dbError(req, res, error);
   } finally {
     if (client) client.release();
   }
@@ -272,7 +272,7 @@ exports.listResponseRequests = async (req, res) => {
     );
     return res.json({ success: true, total: result.rows.length, data: result.rows });
   } catch (error) {
-    return dbError(res, error, 'listResponseRequests');
+    return dbError(req, res, error);
   }
 };
 
@@ -305,6 +305,6 @@ exports.respondToRequest = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'respondToRequest');
+    return dbError(req, res, error);
   }
 };

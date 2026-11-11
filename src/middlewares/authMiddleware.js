@@ -40,7 +40,7 @@ const verifyToken = async (req, res, next) => {
         };
         return next();
     } catch (err) {
-        console.error('Lỗi xác thực người dùng:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xác thực.' });
     }
 };
@@ -66,7 +66,7 @@ const authorizeMentor = async (req, res, next) => {
         }
         return next();
     } catch (err) {
-        console.error('Lỗi kiểm tra Mentor:', err.message);
+        req.logError?.(err);
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi xác minh Mentor.' });
     }
 };

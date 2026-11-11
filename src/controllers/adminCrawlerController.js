@@ -74,7 +74,7 @@ exports.getSources = (req, res) => {
       data: sources,
     });
   } catch (error) {
-    console.error("Lỗi getSources:", error.message);
+    req.logError?.(error);
 
     return res.status(500).json({
       success: false,
@@ -112,7 +112,7 @@ exports.startCrawler = (req, res) => {
       data: run,
     });
   } catch (error) {
-    console.error("Lỗi startCrawler:", error.message);
+    req.logError?.(error);
 
     return res.status(error.statusCode || 500).json({
       success: false,
@@ -133,7 +133,7 @@ exports.getStatus = (req, res) => {
       data: getCurrentRun(),
     });
   } catch (error) {
-    console.error("Lỗi getStatus:", error.message);
+    req.logError?.(error);
 
     return res.status(500).json({
       success: false,
@@ -239,7 +239,7 @@ exports.getLogs = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Lỗi getLogs:", error.message);
+    req.logError?.(error);
 
     return res.status(500).json({
       success: false,
@@ -334,7 +334,7 @@ exports.getPendingScholarships = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Lỗi getPendingScholarships:", error.message);
+    req.logError?.(error);
 
     return res.status(500).json({
       success: false,
@@ -562,7 +562,7 @@ exports.updateScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (error) {
-    console.error("Lỗi updateScholarship:", error.message);
+    req.logError?.(error);
 
     if (error.code === "22008" || error.code === "22007") {
       return res.status(400).json({
@@ -599,7 +599,7 @@ exports.approveScholarship = async (req, res) => {
       data: published,
     });
   } catch (error) {
-    console.error("Lỗi approveScholarship:", error.message);
+    req.logError?.(error);
     return res.status(500).json({ success: false, message: "Không thể duyệt học bổng." });
   }
 };
@@ -666,7 +666,7 @@ exports.rejectScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (error) {
-    console.error("Lỗi rejectScholarship:", error.message);
+    req.logError?.(error);
 
     return res.status(500).json({
       success: false,

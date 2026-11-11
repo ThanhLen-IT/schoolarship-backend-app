@@ -287,7 +287,7 @@ exports.getScholarships = async (req, res) => {
       data: dataResult.rows.map(toPublicScholarship),
     });
   } catch (err) {
-    console.error("Lỗi getScholarships:", err.message);
+    req.logError?.(err);
     if (err.message?.includes("không hợp lệ")) {
       return res.status(400).json({ success: false, message: err.message });
     }
@@ -334,7 +334,7 @@ exports.getScholarshipById = async (req, res) => {
       data: toPublicScholarship(result.rows[0]),
     });
   } catch (err) {
-    console.error("Lỗi getScholarshipById:", err.message);
+    req.logError?.(err);
 
     return res.status(500).json({
       success: false,
@@ -395,7 +395,7 @@ exports.getAdminScholarships = async (req, res) => {
       data: dataResult.rows,
     });
   } catch (err) {
-    console.error("Lỗi getScholarships:", err.message);
+    req.logError?.(err);
 
     if (err.message.includes("không hợp lệ")) {
       return res.status(400).json({
@@ -446,7 +446,7 @@ exports.getAdminScholarshipById = async (req, res) => {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Lỗi getAdminScholarshipById:", err.message);
+    req.logError?.(err);
 
     return res.status(500).json({
       success: false,
@@ -572,7 +572,7 @@ exports.createScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Lỗi createScholarship:", err.message);
+    req.logError?.(err);
 
     if (err.code === "23505") {
       return res.status(409).json({
@@ -746,7 +746,7 @@ exports.updateScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Lỗi updateScholarship:", err.message);
+    req.logError?.(err);
 
     if (err.code === "23505") {
       return res.status(409).json({
@@ -796,7 +796,7 @@ exports.approveScholarship = async (req, res) => {
       data: result,
     });
   } catch (err) {
-    console.error("Lỗi approveScholarship:", err.message);
+    req.logError?.(err);
     return res.status(500).json({
       success: false, message: "Không thể duyệt học bổng."
     });
@@ -850,7 +850,7 @@ exports.rejectScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Lỗi rejectScholarship:", err.message);
+    req.logError?.(err);
 
     return res.status(500).json({
       success: false,
@@ -895,7 +895,7 @@ exports.archiveScholarship = async (req, res) => {
       data: result.rows[0],
     });
   } catch (err) {
-    console.error("Lỗi archiveScholarship:", err.message);
+    req.logError?.(err);
 
     return res.status(500).json({
       success: false,
@@ -940,7 +940,7 @@ exports.deleteScholarship = async (req, res) => {
       deletedId: result.rows[0].id,
     });
   } catch (err) {
-    console.error("Lỗi deleteScholarship:", err.message);
+    req.logError?.(err);
 
     // 23503: Vi phạm khóa ngoại
     if (err.code === "23503") {
