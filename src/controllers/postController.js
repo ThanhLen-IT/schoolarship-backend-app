@@ -76,7 +76,7 @@ exports.getPosts = async (req, res) => {
       totalPages: Math.ceil(total / paging.limit), data: data.rows
     });
   } catch (err) {
-    console.error('Lỗi getPosts:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };
@@ -91,7 +91,7 @@ exports.getPostById = async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ success: false, message: 'Không tìm thấy bài viết!' });
     return res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    console.error('Lỗi getPostById:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };
@@ -121,7 +121,7 @@ exports.createPost = async (req, res) => {
     }
     return res.status(201).json({ success: true, message: 'Đăng bài viết thành công!', data: result.rows[0] });
   } catch (err) {
-    console.error('Lỗi createPost:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };
@@ -183,7 +183,7 @@ exports.toggleLikePost = async (req, res) => {
       message: result.liked ? 'Đã thích bài viết!' : 'Đã bỏ thích bài viết!'
     });
   } catch (err) {
-    console.error('Lỗi toggleLikePost:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };
@@ -212,7 +212,7 @@ exports.getComments = async (req, res) => {
       totalPages: Math.ceil(count.rows[0].total / paging.limit), data: result.rows
     });
   } catch (err) {
-    console.error('Lỗi getComments:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };
@@ -256,7 +256,7 @@ exports.addComment = async (req, res) => {
       data: result.comment, comment_count: result.comment_count
     });
   } catch (err) {
-    console.error('Lỗi addComment:', err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
 };

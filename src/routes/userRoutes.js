@@ -6,6 +6,11 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 // Toàn bộ API này đều yêu cầu đăng nhập
 router.use(verifyToken);
 
+const mobile = require('../controllers/mobileController');
+const files = require('../controllers/mobileFilesController');
+router.post('/avatar', files.avatarUpload, files.avatar);
+router.delete('/me', mobile.closeAccount);
+
 router.put('/profile', userController.updateProfile);
 router.patch('/mentor-status', userController.toggleMentorStatus);
 router.post('/saved/:scholarshipId', userController.saveScholarship);

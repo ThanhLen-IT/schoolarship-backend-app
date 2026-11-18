@@ -433,3 +433,6 @@ FodyWeavers.xsd
 uploads/
 .env.*
 !.env.example
+
+# Re-encoded public avatars (runtime assets)
+media/avatars/

@@ -58,7 +58,7 @@ exports.register = async (req, res) => {
           ? "Username này đã được sử dụng!" : "Email này đã được đăng ký!"
       });
     }
-    console.error("Lỗi Register:", err.message);
+    req.logError?.(err);
     return res.status(500).json({ success: false, message: "Lỗi hệ thống máy chủ" });
   }
 };
@@ -129,7 +129,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Lỗi Login:", err.message);
+    req.logError?.(err);
     res.status(500).json({ success: false, message: "Lỗi hệ thống máy chủ" });
   }
 };
@@ -197,12 +197,12 @@ exports.forgotPassword = async (req, res) => {
          WHERE id = $1 AND reset_password_token = $2`,
         [user.id, tokenHash],
       );
-      console.error("Lỗi gửi email đặt lại mật khẩu:", sendError.message);
+      req.logError?.(sendError, 'password_reset_email');
     }
 
     return successResponse();
   } catch (err) {
-    console.error("Lỗi Forgot Password:", err.message);
+    req.logError?.(err);
     return res.status(500).json({
       success: false,
       message: "Lỗi hệ thống máy chủ",
@@ -255,7 +255,7 @@ exports.resetPassword = async (req, res) => {
       message: "Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.",
     });
   } catch (err) {
-    console.error("Lỗi Reset Password:", err.message);
+    req.logError?.(err);
     return res.status(500).json({
       success: false,
       message: "Lỗi hệ thống máy chủ",
@@ -308,7 +308,7 @@ exports.getMe = async (req, res) => {
       data: currentUser,
     });
   } catch (err) {
-    console.error("Lỗi getMe:", err.message);
+    req.logError?.(err);
 
     res.status(500).json({
       success: false,

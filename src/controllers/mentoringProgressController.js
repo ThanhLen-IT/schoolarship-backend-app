@@ -21,8 +21,8 @@ function validHttpUrl(value) {
   }
 }
 
-function dbError(res, error, context) {
-  console.error(context + ':', error.message);
+function dbError(req, res, error) {
+  req.logError?.(error);
   if (error.code === '42P01' || error.code === '42703') {
     return res.status(503).json({
       success: false,
@@ -36,7 +36,7 @@ exports.createApplication = async (req, res) => {
   const menteeId = req.user.id;
   const mentorId = idOrNull(req.body?.mentor_id);
   const scholarshipId = idOrNull(req.body?.scholarship_id);
-  const cvFileUrl = validHttpUrl(req.body?.cv_file_url);
+  const cvFileUrl = req.file ? '/private-cv/' + req.file.filename : validHttpUrl(req.body?.cv_file_url);
   const introduction = req.body?.introduction === undefined || req.body?.introduction === null
     ? null : requiredText(req.body.introduction, 3000);
   if (!mentorId || !scholarshipId || !cvFileUrl ||
@@ -98,7 +98,7 @@ exports.createApplication = async (req, res) => {
     if (client) {
       try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
     }
-    return dbError(res, error, 'createApplication');
+    return dbError(req, res, error);
   } finally {
     if (client) client.release();
   }
@@ -109,18 +109,19 @@ exports.getMyApplications = async (req, res) => {
     const result = await pool.query(
       'SELECT ma.id, ma.mentee_id, ma.mentor_id, ma.scholarship_id, ma.status, ' +
       'ma.mentoring_started_at, ma.mentoring_completed_at, ma.scholarship_outcome, ' +
-      'ma.outcome_verified_at, ma.created_at, ' +
-      's.title AS scholarship_title, u.full_name AS mentor_name ' +
+      "ma.outcome_verified_at, ma.created_at, ma.introduction, CASE WHEN ma.mentor_id=$1 THEN 'mentor' ELSE 'mentee' END AS viewer_role, "
+      + 'ma.mentor_id,ma.mentee_id, ' +
+      's.title AS scholarship_title, u.full_name AS mentor_name, mentee.full_name AS mentee_name ' +
       'FROM mentee_applications ma ' +
       'LEFT JOIN scholarships s ON s.id = ma.scholarship_id ' +
-      'JOIN users u ON u.id = ma.mentor_id ' +
+      'JOIN users u ON u.id = ma.mentor_id JOIN users mentee ON mentee.id=ma.mentee_id ' +
       'WHERE ma.mentee_id = $1 OR ma.mentor_id = $1 ' +
       'ORDER BY ma.created_at DESC, ma.id DESC LIMIT 100',
       [req.user.id]
     );
     return res.json({ success: true, total: result.rows.length, data: result.rows });
   } catch (error) {
-    return dbError(res, error, 'getMyApplications');
+    return dbError(req, res, error);
   }
 };
 
@@ -169,7 +170,7 @@ exports.updateApplicationProgress = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'updateApplicationProgress');
+    return dbError(req, res, error);
   }
 };
 
@@ -198,7 +199,7 @@ exports.recordOutcome = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'recordOutcome');
+    return dbError(req, res, error);
   }
 };
 
@@ -249,7 +250,7 @@ exports.createResponseRequest = async (req, res) => {
     if (client) {
       try { await client.query('ROLLBACK'); } catch (_) { /* connection closed */ }
     }
-    return dbError(res, error, 'createResponseRequest');
+    return dbError(req, res, error);
   } finally {
     if (client) client.release();
   }
@@ -272,7 +273,7 @@ exports.listResponseRequests = async (req, res) => {
     );
     return res.json({ success: true, total: result.rows.length, data: result.rows });
   } catch (error) {
-    return dbError(res, error, 'listResponseRequests');
+    return dbError(req, res, error);
   }
 };
 
@@ -305,6 +306,6 @@ exports.respondToRequest = async (req, res) => {
     }
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return dbError(res, error, 'respondToRequest');
+    return dbError(req, res, error);
   }
 };

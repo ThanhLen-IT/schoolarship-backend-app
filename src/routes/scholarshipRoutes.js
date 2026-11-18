@@ -13,6 +13,7 @@ const {
 // ==========================================
 
 // Chỉ lấy học bổng đã công khai
+router.get("/filters", require("../controllers/mobileController").filters);
 router.get("/", scholarshipController.getScholarships);
 
 // Chỉ xem chi tiết học bổng đã công khai

@@ -47,7 +47,7 @@ exports.getRanking = async (req, res) => {
       data: ranking.slice(offset, offset + limit)
     });
   } catch (error) {
-    console.error('Lỗi Mentor Ranking:', error.message);
+    req.logError?.(error);
     return res.status(500).json({
       success: false,
       message: 'Không thể lấy Ranking Mentor. Kiểm tra migration Database.'
