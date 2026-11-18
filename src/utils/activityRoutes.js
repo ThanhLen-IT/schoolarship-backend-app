@@ -72,6 +72,7 @@ const routes = [
   ['POST', '/api/admin/crawler/scholarships/:id/reject', 'admin.scholarship.reject'],
   ['PATCH', '/api/admin/mentoring/applications/:id/outcome', 'admin.mentoring.outcome.record'],
   ['GET', '/health', 'health.live'],
+  ['GET', '/api/admin/monitoring', 'admin.monitoring.read'],
   ['GET', '/health/ready', 'health.ready'],
   ['GET', '/health/midterm', 'health.midterm'],
   ['GET', '/', 'service.info']

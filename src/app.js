@@ -3,7 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 // Khởi chạy kết nối Database
-require("./config/db");
+const pool = require('./config/db');
 
 const app = express();
 
@@ -11,7 +11,10 @@ const app = express();
 // Register before CORS/body parsers so preflight and malformed JSON are logged.
 const { createRequestLogger } = require('./middlewares/requestLogger');
 const { errorHandler } = require('./middlewares/errorHandler');
-app.use(createRequestLogger());
+const { verifyToken, authorizeRoles } = require('./middlewares/authMiddleware');
+const { createRequestMetrics } = require('./services/requestMetrics');
+const requestMetrics = createRequestMetrics();
+app.use(createRequestLogger({ observe: requestMetrics.record }));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -41,6 +44,21 @@ app.use("/api/posts", postRoutes);
 app.use("/api/mentoring", mentoringRoutes);
 app.use("/api/admin/mentoring", adminMentoringRoutes);
 
+app.get('/api/admin/monitoring', verifyToken, authorizeRoles('admin'), async (req, res) => {
+    let database = 'ready';
+    try {
+        await pool.query({ text: 'SELECT 1', query_timeout: 2000 });
+    } catch (error) {
+        req.logError?.(error);
+        database = 'unavailable';
+    }
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data: {
+        ...requestMetrics.snapshot(),
+        services: { backend: 'up', database },
+    } });
+});
+
 app.use('/api', require('./routes/mobileRoutes'));
 
 // Liveness: confirms the Express process is running.
@@ -51,7 +69,7 @@ app.get('/health', (req, res) => {
 // Readiness: reports whether PostgreSQL is reachable before the demo.
 app.get('/health/ready', async (req, res) => {
     try {
-        await require('./config/db').query('SELECT 1');
+        await pool.query('SELECT 1');
         return res.status(200).json({ success: true, status: 'ready' });
     } catch (error) {
         req.logError?.(error);
@@ -62,7 +80,6 @@ app.get('/health/ready', async (req, res) => {
 // Midterm readiness also checks that the additive Ranking migration is installed.
 app.get('/health/midterm', async (req, res) => {
     try {
-        const pool = require('./config/db');
         await pool.query('SELECT mentoring_started_at, scholarship_outcome FROM mentee_applications LIMIT 0');
         await pool.query('SELECT id FROM mentoring_response_requests LIMIT 0');
         return res.status(200).json({ success: true, status: 'midterm_ready' });

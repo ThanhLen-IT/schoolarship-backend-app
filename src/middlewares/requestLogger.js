@@ -31,7 +31,7 @@ function actor(user) {
  * This is an allowlist: never serialize req, headers, body, query values,
  * response objects, filenames, error.message or error.stack into the journal.
  */
-function createRequestLogger({ write = line => process.stdout.write(line) } = {}) {
+function createRequestLogger({ write = line => process.stdout.write(line), observe } = {}) {
   return function requestLogger(req, res, next) {
     const started = process.hrtime.bigint();
     const requestId = randomUUID();
@@ -116,6 +116,10 @@ function createRequestLogger({ write = line => process.stdout.write(line) } = {}
       // A failed logging sink must never change an API response or trigger
       // another error log containing raw request data.
       try { write(JSON.stringify(entry) + '\n'); } catch (_) { /* sink unavailable */ }
+      if (observe && !aborted && method !== 'OPTIONS' && pathname.startsWith('/api/') &&
+          activity.action !== 'admin.monitoring.read') {
+        try { observe(entry); } catch (_) { /* metrics unavailable */ }
+      }
     }
 
     res.once('finish', () => record(false));

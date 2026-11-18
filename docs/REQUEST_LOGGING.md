@@ -113,3 +113,16 @@ và việc lỗi bộ ghi log không làm hỏng phản hồi API.
 đang mount và khởi động app thực để kiểm tra 4 request HTTP local. Kiểm tra app
 dùng database local cố ý không khả dụng để kiểm chứng log lỗi kết nối; không
 truy cập database thật. Chưa triển khai thay đổi lên EC2 hoặc gửi email thật.
+
+## Tổng quan giám sát trên Web Admin
+
+`GET /api/admin/monitoring` yêu cầu Bearer JWT của tài khoản admin đang hoạt động.
+Phản hồi `data` gồm trạng thái tiến trình và kết nối PostgreSQL, tổng số request,
+số phản hồi 4xx/5xx và độ trễ p95 ước tính. Trường `series` chia theo tối đa 24
+khung giờ, kể cả giờ hiện tại. `recentErrors` giữ tối đa 30 lỗi 5xx gần nhất trong
+khoảng đó, chỉ gồm thời điểm, mã request, phương thức, route mẫu, HTTP và độ trễ.
+
+Số liệu lấy từ các phản hồi API đã hoàn tất, bỏ qua CORS preflight, ngắt kết nối
+và chính request đọc giám sát. Số liệu ở bộ nhớ từng tiến trình và bắt đầu lại
+khi restart. Giữ journal để tra cứu lịch sử dài hơn qua mã request. Nếu backend
+hoặc xác thực không khả dụng, giao diện báo lỗi lấy số liệu và cho phép thử lại.
