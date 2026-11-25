@@ -340,12 +340,19 @@ exports.closeAccount = async (req, res) => {
 };
 exports.adminSupport = async (req, res) => {
   const { page, limit, offset } = paging(req.query);
+  const status = req.query.status ?? "";
+  if (!["", "open", "resolved"].includes(status))
+    reject(400, "Trạng thái yêu cầu hỗ trợ không hợp lệ.");
+  const filter = "WHERE ($1::text IS NULL OR status=$1)";
+  const params = [status || null];
   const count = await pool.query(
-    "SELECT COUNT(*)::int AS total FROM support_tickets",
+    `SELECT COUNT(*)::int AS total FROM support_tickets ${filter}`,
+    params,
   );
   const result = await pool.query(
-    "SELECT id,user_id,subject,message,status,admin_response,created_at FROM support_tickets ORDER BY id DESC LIMIT $1 OFFSET $2",
-    [limit, offset],
+    `SELECT id,user_id,subject,message,status,admin_response,created_at
+     FROM support_tickets ${filter} ORDER BY id DESC LIMIT $2 OFFSET $3`,
+    [...params, limit, offset],
   );
   res.json({
     success: true,
@@ -361,13 +368,21 @@ exports.replySupport = async (req, res) => {
     ticket = id(req.params.id);
   const result = await pool.query(
     `WITH updated AS (
-  UPDATE support_tickets SET admin_response=$2,status='resolved',resolved_at=NOW() WHERE id=$1 RETURNING id,user_id,status,admin_response
+  UPDATE support_tickets SET admin_response=$2,status='resolved',resolved_at=NOW()
+  WHERE id=$1 AND (status<>'resolved' OR admin_response IS DISTINCT FROM $2)
+  RETURNING id,user_id,status,admin_response
  ), note AS (
   INSERT INTO notifications(user_id,title,content,type,reference_id)
   SELECT user_id,'Yêu cầu hỗ trợ đã được phản hồi','Mở Hỗ trợ & góp ý để đọc phản hồi.','support',id FROM updated RETURNING id
  ) SELECT id,status,admin_response FROM updated`,
     [ticket, reply],
   );
-  if (!result.rows.length) reject(404, "Không tìm thấy yêu cầu hỗ trợ.");
-  res.json({ success: true, data: result.rows[0] });
+  // An identical retry may have waited for a concurrent update. Read the
+  // committed ticket in a new statement without adding another notification.
+  const saved = result.rows[0] ?? (await pool.query(
+    "SELECT id,status,admin_response FROM support_tickets WHERE id=$1",
+    [ticket],
+  )).rows[0];
+  if (!saved) reject(404, "Không tìm thấy yêu cầu hỗ trợ.");
+  res.json({ success: true, data: saved });
 };
