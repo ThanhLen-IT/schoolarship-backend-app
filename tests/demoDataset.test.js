@@ -59,7 +59,7 @@ test('demo dataset uses the supplied schema, rolls back cleanly and supports rea
   t.after(async () => { await db.close(); await fs.rm(uploads, { recursive: true, force: true }); });
   await db.exec(await fs.readFile(path.join(__dirname, 'fixtures/database-v1-schema.sql'), 'utf8'));
   await db.exec('SET search_path TO public');
-  for (const migration of ['20261110_midterm_mentor_ranking.sql', '20261110_normalize_scholarship_study_levels.sql', '20261111_mobile_completion.sql', '20261111_crawler_status_width.sql'])
+  for (const migration of ['20261110_midterm_mentor_ranking.sql', '20261110_normalize_scholarship_study_levels.sql', '20261111_mobile_completion.sql', '20261111_crawler_status_width.sql', '20261119_admin_review_audit.sql'])
     await db.exec(await fs.readFile(path.join(__dirname, '../migrations', migration), 'utf8'));
   const options = { password: 'FixturePassword123', baseDate: '2026-11-11', uploadDir: uploads };
   const dry = await seedDemo(db, options);
@@ -159,6 +159,14 @@ test('demo dataset uses the supplied schema, rolls back cleanly and supports rea
   assert.ok((await cv.text()).includes('GLOBAL SUCCESS - DEMO CV'));
   const denied = await fetch(cvUrl, { headers: { Authorization: 'Bearer ' + token(users.find(u => u.email.startsWith('student40@'))) } });
   assert.equal(denied.status, 404);
-  const approve = await api('/api/admin/scholarships/' + pending.body.data[0].id + '/approve', admin, 'PATCH');
+  const scholarshipId = pending.body.data[0].id;
+  const approvalRoute = '/api/admin/scholarships/' + scholarshipId + '/approve';
+  const approve = await api(approvalRoute, admin, 'PATCH');
   assert.equal(approve.status, 200);
+  assert.equal((await api(approvalRoute, admin, 'PATCH')).status, 409);
+  const audit = await db.query('SELECT admin_id, target_id, decision FROM admin_review_audit');
+  assert.equal(audit.rows.length, 1);
+  assert.equal(Number(audit.rows[0].admin_id), admin.id);
+  assert.equal(Number(audit.rows[0].target_id), scholarshipId);
+  assert.equal(audit.rows[0].decision, 'approved');
 });

@@ -1,6 +1,6 @@
 const pool = require("../config/db");
 const { normalizeStudyLevels, isValidISODate, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
-const { approvePendingScholarship } = require("../services/scholarshipApprovalService");
+const { approvePendingScholarship, rejectPendingScholarship } = require("../services/scholarshipApprovalService");
 
 const {
   getCrawlerSources,
@@ -644,17 +644,7 @@ exports.rejectScholarship = async (req, res) => {
       });
     }
 
-    const result = await pool.query(
-      `UPDATE scholarships
-             SET status = 'rejected',
-                 reviewed_by = $2,
-                 reviewed_at = NOW(),
-                 rejection_reason = $3
-             WHERE id = $1
-               AND status = 'pending'
-             RETURNING *`,
-      [id, adminId, reason],
-    );
+    const result = await rejectPendingScholarship(id, adminId, reason);
 
     if (result.rowCount === 0) {
       return await scholarshipNotFoundOrProcessed(id, res);

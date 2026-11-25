@@ -29,6 +29,12 @@ async function approvePendingScholarship(scholarshipId, adminId) {
       "WHERE id = $1 AND status = 'pending' RETURNING *",
       [scholarshipId, adminId, safeHtml, levels]
     );
+    if (updated.rows.length) {
+      await client.query(
+        "INSERT INTO admin_review_audit (admin_id, target_type, target_id, decision) VALUES ($1, 'scholarship', $2, 'approved')",
+        [adminId, scholarshipId]
+      );
+    }
     await client.query('COMMIT');
     return updated.rows[0] || null;
   } catch (error) {
@@ -39,4 +45,21 @@ async function approvePendingScholarship(scholarshipId, adminId) {
   }
 }
 
-module.exports = { approvePendingScholarship };
+async function rejectPendingScholarship(scholarshipId, adminId, reason) {
+  return pool.query(
+    `WITH updated AS (
+       UPDATE scholarships
+       SET status = 'rejected', reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP, rejection_reason = $3
+       WHERE id = $1 AND status = 'pending'
+       RETURNING *
+     ), logged AS (
+       INSERT INTO admin_review_audit (admin_id, target_type, target_id, decision, note)
+       SELECT $2, 'scholarship', id, 'rejected', rejection_reason FROM updated
+     )
+     SELECT * FROM updated`,
+    [scholarshipId, adminId, reason]
+  );
+}
+
+module.exports = { approvePendingScholarship, rejectPendingScholarship };
