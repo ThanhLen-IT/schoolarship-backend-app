@@ -92,6 +92,11 @@ async function decideVerification(req, res, decision) {
                 [record.user_id]
             );
         }
+        await client.query(
+            `INSERT INTO admin_review_audit (admin_id, target_type, target_id, decision, note)
+             VALUES ($1, 'mentor_verification', $2, $3, $4)`,
+            [req.user.id, id, decision, adminNote]
+        );
         await client.query('COMMIT');
         return res.json({
             success: true,

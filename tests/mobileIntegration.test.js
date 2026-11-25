@@ -315,31 +315,67 @@ test(
       assert.deepEqual(r.body.data, []);
     });
     await t.test(
-      "only admins can reply to support tickets and replies notify the ticket owner",
+      "admin support filters and paginates tickets and identical replies notify only once",
       async () => {
         let r = await api("/api/admin/support/tickets", { actor: other });
         assert.equal(r.status, 403);
         await db.query("UPDATE users SET role='admin' WHERE id=$1", [other]);
-        r = await api("/api/admin/support/tickets", { actor: other });
+        r = await api("/api/admin/support/tickets?status=open", { actor: other });
         assert.equal(r.status, 200);
         const ticket = r.body.data[0].id;
-        r = await api(`/api/admin/support/tickets/${ticket}/reply`, {
-          method: "PATCH",
-          actor: other,
-          body: { response: "We have checked your request" },
-        });
-        assert.equal(r.status, 200, JSON.stringify(r.body));
+        const reply = (response) =>
+          api(`/api/admin/support/tickets/${ticket}/reply`, {
+            method: "PATCH",
+            actor: other,
+            body: { response },
+          });
+        const replies = await Promise.all([
+          reply("We have checked your request"),
+          reply(" We have checked your request "),
+        ]);
+        for (const response of replies) {
+          assert.equal(response.status, 200, JSON.stringify(response.body));
+          assert.equal(response.body.data.status, "resolved");
+        }
         r = await api("/api/support/tickets");
         assert.equal(
           r.body.data[0].admin_response,
           "We have checked your request",
         );
         r = await api("/api/notifications");
-        assert.ok(
-          r.body.data.some(
+        assert.equal(
+          r.body.data.filter(
             (n) => n.type === "support" && n.reference_id === ticket,
-          ),
+          ).length,
+          1,
         );
+        r = await reply("Updated reply");
+        assert.equal(r.status, 200);
+        assert.equal(r.body.data.admin_response, "Updated reply");
+
+        r = await api("/api/support/tickets", {
+          method: "POST",
+          actor: mentor,
+          body: { subject: "Another ticket", message: "Still open" },
+        });
+        assert.equal(r.status, 201);
+        const openTicket = r.body.data.id;
+        const open = await api("/api/admin/support/tickets?status=open&limit=1", {
+          actor: other,
+        });
+        const resolved = await api(
+          "/api/admin/support/tickets?status=resolved&limit=1",
+          { actor: other },
+        );
+        const all = await api("/api/admin/support/tickets?limit=1", { actor: other });
+        assert.deepEqual(open.body.data.map((entry) => entry.id), [openTicket]);
+        assert.deepEqual(resolved.body.data.map((entry) => entry.id), [ticket]);
+        assert.equal(open.body.total, 1);
+        assert.equal(resolved.body.total, 1);
+        assert.equal(all.body.total, 2);
+        assert.equal(all.body.totalPages, 2);
+        r = await api("/api/admin/support/tickets?status=invalid", { actor: other });
+        assert.equal(r.status, 400);
         await db.query("UPDATE users SET role='user' WHERE id=$1", [other]);
       },
     );

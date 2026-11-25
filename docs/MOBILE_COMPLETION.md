@@ -71,8 +71,8 @@ require the existing Bearer JWT middleware (current active account checked in DB
 | PATCH `/api/notifications/read-all` | Own notices only |
 | POST `/api/support/tickets` | `{subject,message}` (1–255 / 1–5000 characters) |
 | GET `/api/support/tickets` | Own tickets, status and admin replies; paginated |
-| GET `/api/admin/support/tickets` | Admin only, paginated support inbox |
-| PATCH `/api/admin/support/tickets/:id/reply` | Admin only `{response}`; resolve ticket and notify its owner atomically |
+| GET `/api/admin/support/tickets` | Admin only, paginated support inbox. Optional `status=open` or `status=resolved` |
+| PATCH `/api/admin/support/tickets/:id/reply` | Admin only `{response}`; resolve ticket and notify its owner atomically. Retrying the same response leaves the existing notification intact |
 | DELETE `/api/users/me` | `{current_password}`; re-authentication and account closure below |
 
 Mentoring list responses now include `viewer_role`, mentor/mentee IDs/names and

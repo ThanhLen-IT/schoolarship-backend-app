@@ -1,7 +1,7 @@
 const pool = require("../config/db");
 const { toPublicScholarship } = require("../utils/publicScholarship");
 const { normalizeStudyLevels: normalizeCanonicalStudyLevels, sanitizeScholarshipHtml } = require("../utils/scholarshipContent");
-const { approvePendingScholarship } = require("../services/scholarshipApprovalService");
+const { approvePendingScholarship, rejectPendingScholarship } = require("../services/scholarshipApprovalService");
 
 // ======================================================
 // CẤU HÌNH
@@ -827,18 +827,7 @@ exports.rejectScholarship = async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `UPDATE scholarships
-             SET
-                status = 'rejected',
-                reviewed_by = $2,
-                reviewed_at = CURRENT_TIMESTAMP,
-                rejection_reason = $3,
-                updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND status = 'pending'
-             RETURNING *`,
-      [id, req.user.id, rejectionReason],
-    );
+    const result = await rejectPendingScholarship(id, req.user.id, rejectionReason);
 
     if (result.rows.length === 0) {
       return await statusChangeConflict(id, res, "từ chối");

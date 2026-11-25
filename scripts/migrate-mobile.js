@@ -17,6 +17,7 @@ const client = new Client({
       "20261110_normalize_scholarship_study_levels.sql",
       "20261111_mobile_completion.sql",
       "20261111_crawler_status_width.sql",
+      "20261119_admin_review_audit.sql",
     ]) {
       await client.query(
         await fs.readFile(path.join(__dirname, "../migrations", file), "utf8"),

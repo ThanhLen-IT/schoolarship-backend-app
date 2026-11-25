@@ -73,6 +73,7 @@ const routes = [
   ['PATCH', '/api/admin/mentoring/applications/:id/outcome', 'admin.mentoring.outcome.record'],
   ['GET', '/health', 'health.live'],
   ['GET', '/api/admin/monitoring', 'admin.monitoring.read'],
+  ['GET', '/api/admin/review-audit', 'admin.review_audit.list'],
   ['GET', '/health/ready', 'health.ready'],
   ['GET', '/health/midterm', 'health.midterm'],
   ['GET', '/', 'service.info']

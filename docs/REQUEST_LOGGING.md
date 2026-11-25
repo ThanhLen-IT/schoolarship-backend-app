@@ -126,3 +126,15 @@ Số liệu lấy từ các phản hồi API đã hoàn tất, bỏ qua CORS pre
 và chính request đọc giám sát. Số liệu ở bộ nhớ từng tiến trình và bắt đầu lại
 khi restart. Giữ journal để tra cứu lịch sử dài hơn qua mã request. Nếu backend
 hoặc xác thực không khả dụng, giao diện báo lỗi lấy số liệu và cho phép thử lại.
+
+## Nhật ký xét duyệt
+
+Chạy `npm run migrate:mobile` để tạo bảng `admin_review_audit` trước khi dùng
+bản backend có tính năng này. Quyết định duyệt hoặc từ chối học bổng và xác minh
+mentor được ghi cùng transaction với cập nhật nghiệp vụ. Nhật ký lưu ID admin,
+loại và ID hồ sơ, quyết định, thời điểm và ghi chú nếu có. Những quyết định đã
+thực hiện trước migration không được điền hồi tố.
+
+Admin đang hoạt động có thể đọc `GET /api/admin/review-audit`. Bộ lọc tùy chọn
+gồm `target_type=scholarship|mentor_verification`, `decision=approved|rejected`,
+`page` và `limit`. Phản hồi có `data`, `page`, `limit` và `total`.

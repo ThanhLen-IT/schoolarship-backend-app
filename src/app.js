@@ -59,6 +59,9 @@ app.get('/api/admin/monitoring', verifyToken, authorizeRoles('admin'), async (re
     } });
 });
 
+app.get('/api/admin/review-audit', verifyToken, authorizeRoles('admin'),
+    require('./controllers/adminReviewAuditController').listReviewAudit);
+
 app.use('/api', require('./routes/mobileRoutes'));
 
 // Liveness: confirms the Express process is running.
